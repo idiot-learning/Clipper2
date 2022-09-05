@@ -6,10 +6,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(CLIPPER2_UTILS "Build utilities" OFF)
-option(CLIPPER2_EXAMPLES "Build examples" OFF)
-option(CLIPPER2_TESTS "Build tests" OFF)
-
+option(CLIPPER2_UTILS "Build utilities" ON)
+option(CLIPPER2_EXAMPLES "Build examples" ON)
+option(CLIPPER2_TESTS "Build tests" ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(Clipper2 STATIC
   Clipper2Lib/clipper.core.h
   Clipper2Lib/clipper.engine.cpp
@@ -110,8 +110,8 @@ if(CLIPPER2_EXAMPLES)
 
   target_link_libraries(Clipper2Zutils PRIVATE Clipper2Z)
   target_include_directories(Clipper2Zutils
-    PUBLIC UtilsZ
-    SYSTEM INTERFACE UtilsZ
+    PUBLIC ${PROJECT_SOURCE_DIR}/build
+    SYSTEM INTERFACE ${PROJECT_SOURCE_DIR}/build/UtilsZ
   )
   ##########################################################################
   ##########################################################################
