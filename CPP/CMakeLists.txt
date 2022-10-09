@@ -152,6 +152,7 @@ if(CLIPPER2_TESTS)
     Tests/TestPolytreeUnion.cpp
     Tests/TestRandomPaths.cpp
     Tests/TestTrimCollinear.cpp
+    Tests/TestCoedge2107.cpp
   )
   add_executable(ClipperTests ${ClipperTests_SRC})
   target_link_libraries(ClipperTests gtest gtest_main Clipper2 Clipper2utils)

@@ -1,1 +1,4 @@
 .*
+RandomPolygons.txt
+build/*
+issues/*
