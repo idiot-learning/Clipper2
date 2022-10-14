@@ -175,7 +175,7 @@ namespace Clipper2Lib {
 		std::vector<LocalMinima*> minima_list_;		//pointers in case of memory reallocs
 		std::vector<LocalMinima*>::iterator current_locmin_iter_;
 		std::vector<Vertex*> vertex_lists_;
-		std::priority_queue<int64_t> scanline_list_;
+		std::priority_queue<int64_t> scanline_list_;  //in C++ STL, by default, the top element is always the greatest element
 		std::vector<IntersectNode> intersect_nodes_; 
 		std::vector<OutRec*> outrec_list_;				//pointers in case of memory reallocs
 		std::vector<Joiner*> joiner_list_;				//pointers in case of memory reallocs

@@ -629,7 +629,7 @@ namespace Clipper2Lib {
 	{
 		if (!minima_list_sorted_)
 		{
-			std::sort(minima_list_.begin(), minima_list_.end(), LocMinSorter());
+			std::sort(minima_list_.begin(), minima_list_.end(), LocMinSorter()); // y in ascending order, smaller y with higher position
 			minima_list_sorted_ = true;
 		}
 		std::vector<LocalMinima*>::const_reverse_iterator i;
@@ -704,10 +704,11 @@ namespace Clipper2Lib {
 				curr_v->flags = VertexFlags::None;
 				prev_v = curr_v++;
 				cnt++;
-			}
+			}  
+			// the circle needs to be formed
 			if (!prev_v || !prev_v->prev) continue;
 			if (!is_open && prev_v->pt == v0->pt)
-				prev_v = prev_v->prev;
+				prev_v = prev_v->prev; // only one vertice in a circle list
 			prev_v->next = v0;
 			v0->prev = prev_v;
 			v = curr_v; // ie get ready for next path
@@ -717,9 +718,9 @@ namespace Clipper2Lib {
 			bool going_up, going_up0;
 			if (is_open)
 			{
-				curr_v = v0->next;
+				curr_v = v0->next;// this is the second vertice
 				while (curr_v != v0 && curr_v->pt.y == v0->pt.y)
-					curr_v = curr_v->next;
+					curr_v = curr_v->next; // find the vertice of first non-horizontal edge
 				going_up = curr_v->pt.y <= v0->pt.y;
 				if (going_up)
 				{
@@ -731,9 +732,9 @@ namespace Clipper2Lib {
 			}
 			else // closed path
 			{
-				prev_v = v0->prev;
+				prev_v = v0->prev; // last vertice of a path
 				while (prev_v != v0 && prev_v->pt.y == v0->pt.y)
-					prev_v = prev_v->prev;
+					prev_v = prev_v->prev; 
 				if (prev_v == v0)
 					continue; // only open paths can be completely flat
 				going_up = prev_v->pt.y > v0->pt.y;
@@ -768,7 +769,7 @@ namespace Clipper2Lib {
 			}
 			else if (going_up != going_up0)
 			{
-				if (going_up0) AddLocMin(*prev_v, polytype, false);
+				if (going_up0) AddLocMin(*prev_v, polytype, false); // add the last vertice as the local min
 				else prev_v->flags = prev_v->flags | VertexFlags::LocalMax;
 			}
 		} // end processing current path
@@ -779,7 +780,7 @@ namespace Clipper2Lib {
 
 	inline void ClipperBase::InsertScanline(int64_t y)
 	{
-		scanline_list_.push(y);
+		scanline_list_.push(y); // in C++ STL, by default, the top element is always the greatest element
 	}
 
 
@@ -2021,10 +2022,10 @@ namespace Clipper2Lib {
 		fillrule_ = fillrule;
 		using_polytree_ = use_polytrees;
 		Reset();
-		int64_t y;
+		int64_t y; // the current bottom line of scan beam
 		if (ct == ClipType::None || !PopScanline(y)) return true;
 
-		while (succeeded_)
+		while (succeeded_) // the Reset succeed, LML and SBL are prepared
 		{
 			InsertLocalMinimaIntoAEL(y);
 			Active* e;
