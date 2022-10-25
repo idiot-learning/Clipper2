@@ -1,4 +1,4 @@
 .*
 RandomPolygons.txt
-build/*
+CPP/build_root/*
 issues/*
