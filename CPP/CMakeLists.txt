@@ -76,6 +76,7 @@ if(CLIPPER2_UTILS OR CLIPPER2_TESTS OR CLIPPER2_EXAMPLES)
   )
 
   add_library(Clipper2utils STATIC ${CLIPPER2_UTILS_INC} ${CLIPPER2_UTILS_SRC})
+  add_subdirectory(Utils/ChaoUtil)
 
   target_link_libraries(Clipper2utils PUBLIC Clipper2)
   target_include_directories(Clipper2utils
@@ -127,7 +128,15 @@ if(CLIPPER2_EXAMPLES)
   endif()
 endif()
 
-
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+#set(Boost_USE_STATIC_RUNTIME ON)
+# set(BOOST_ROOT "C:/Program Files/Boost/boost_1_75_0")
+# set(BOOST_LIBRARYDIR "C:/Program Files/Boost/boost_1_75_0")
+find_package(Boost REQUIRED COMPONENTS system filesystem program_options )
+message(STATUS "Boost version: ${Boost_VERSION}")
+message(STATUS "Boost_INCLUDE_DIR: ${Boost_INCLUDE_DIR}")
+include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 if(CLIPPER2_TESTS)
   # See: https://cliutils.gitlab.io/modern-cmake/chapters/testing/googletest.html
 
@@ -142,20 +151,23 @@ if(CLIPPER2_TESTS)
   set_target_properties(gtest gtest_main PROPERTIES FOLDER GTest)
 
   set(ClipperTests_SRC
-    Tests/TestLines.cpp
-    Tests/TestOffsetOrientation.cpp
-    Tests/TestOrientation.cpp
-    Tests/TestPolygons.cpp
-    Tests/TestPolytreeHoles1.cpp
-    Tests/TestPolytreeHoles2.cpp
-    Tests/TestPolytreeIntersection.cpp
-    Tests/TestPolytreeUnion.cpp
-    Tests/TestRandomPaths.cpp
-    Tests/TestTrimCollinear.cpp
-    Tests/TestCoedge2107.cpp
+    # Tests/TestLines.cpp
+    # Tests/TestOffsetOrientation.cpp
+    # Tests/TestOrientation.cpp
+    # Tests/TestPolygons.cpp
+    # Tests/TestPolytreeHoles1.cpp
+    # Tests/TestPolytreeHoles2.cpp
+    # Tests/TestPolytreeIntersection.cpp
+    # Tests/TestPolytreeUnion.cpp
+    # Tests/TestRandomPaths.cpp
+    # Tests/TestTrimCollinear.cpp
+    #Tests/TestCoedge2107.cpp
+    Tests/TestOverlapCase.cpp
+    # Tests/TestAssociation.cpp
+    # Tests/TestClipperLearning.cpp
   )
   add_executable(ClipperTests ${ClipperTests_SRC})
-  target_link_libraries(ClipperTests gtest gtest_main Clipper2 Clipper2utils)
+  target_link_libraries(ClipperTests ChaoFileUtils gtest gtest_main Clipper2 Clipper2utils)
 
   add_executable(ClipperTestsZ ${ClipperTests_SRC})
   target_link_libraries(ClipperTestsZ gtest gtest_main Clipper2Z Clipper2Zutils)
@@ -169,7 +181,7 @@ if(CLIPPER2_TESTS)
 
   gtest_discover_tests(ClipperTests
         # set a working directory so your project root so that you can find test data via paths relative to the project root
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/../Tests
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/
         PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_DIR}"
   )
 
