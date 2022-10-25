@@ -2,8 +2,10 @@
 #include "clipper2/clipper.h"
 #include <random>
 #include "../Utils/clipper.svg.utils.h"
-#include "../Utils/PionFileLoad.h"
-#include "../Utils/PionFileSave.h"
+#include "../Utils/ChaoUtil/include/ChaoFileLoad.h"
+#include "../Utils/ChaoUtil/include/ChaoFileSave.h"
+// #include "ChaoFileLoad.h"
+// #include "ChaoFileSave.h"
 
 void static SystemTest(const std::string &filename) {
 #ifdef _WIN32
@@ -50,7 +52,7 @@ void DisplayPolyTree(const PolyTree64& pt) {
 //     cp.AddSubject(subject);
 //     PolyTree64 clip_solution2;
 //     Paths64 clip_solution;
-//
+
 //     const bool ret = cp.Execute(ClipType::Union, FillRule::Positive, clip_solution);
 //     const bool ret2 = cp.Execute(ClipType::Union, FillRule::Positive, clip_solution2);
 //    /* Clipper64 cp2;
@@ -58,9 +60,9 @@ void DisplayPolyTree(const PolyTree64& pt) {
 //     cp2.AddSubject(clip_solution);
 //     PolyTree64 clip_solution_double;
 //     cp2.Execute(ClipType::Union, FillRule::Positive, clip_solution_double);*/
-//
+
 //     SvgWriter svg, svg2;
-//
+
 //     SvgAddSolution(svg, subject, FillRule::Positive, true);
 //     SvgAddSolution(svg2, clip_solution, FillRule::Positive, true);
 //     SvgSaveToFile(svg, "TrimCoedge2107_origin.svg", 5450, 5450, 10);
@@ -154,20 +156,20 @@ void DisplayPolyTree(const PolyTree64& pt) {
 //    SystemTest("Issue_result.svg");
 //}
 
-TEST(Clipper2Tests, TestChildParentAssociation) {
-    using namespace Clipper2Lib;
-    Paths64 subject, clip;
-    subject.push_back(MakePath("641680, 906000, 247280, 906000, 247280, 700000, 253680, 700000, 253680, 901280, 635280, 901280, 635280, 700000, 641680, 700000"));
-    subject.push_back(MakePath("635280, 901280, 253680, 901280, 253680, 860780, 635280, 860780"));
-    subject.push_back(MakePath("635200, 901200, 635200, 860860, 253760, 860860, 253760, 901200"));
-    subject.push_back(MakePath("635280, 860780, 253680, 860780, 253680, 844500, 635280, 844500"));
-    subject.push_back(MakePath("635280, 844500, 635200, 844500, 635200, 814060, 635280, 814060"));
-    subject.push_back(MakePath("253760, 844500, 253680, 844500, 253680, 814060, 253760, 814060"));
-    subject.push_back(MakePath("624560, 837460, 264400, 837460, 264400, 821100, 624560, 821100"));
-    subject.push_back(MakePath("635280, 814060, 253680, 814060, 253680, 797700, 635280, 797700"));
+// TEST(Clipper2Tests, TestChildParentAssociation) {
+//     using namespace Clipper2Lib;
+//     Paths64 subject, clip;
+//     subject.push_back(MakePath("641680, 906000, 247280, 906000, 247280, 700000, 253680, 700000, 253680, 901280, 635280, 901280, 635280, 700000, 641680, 700000"));
+//     subject.push_back(MakePath("635280, 901280, 253680, 901280, 253680, 860780, 635280, 860780"));
+//     subject.push_back(MakePath("635200, 901200, 635200, 860860, 253760, 860860, 253760, 901200"));
+//     subject.push_back(MakePath("635280, 860780, 253680, 860780, 253680, 844500, 635280, 844500"));
+//     subject.push_back(MakePath("635280, 844500, 635200, 844500, 635200, 814060, 635280, 814060"));
+//     subject.push_back(MakePath("253760, 844500, 253680, 844500, 253680, 814060, 253760, 814060"));
+//     subject.push_back(MakePath("624560, 837460, 264400, 837460, 264400, 821100, 624560, 821100"));
+//     subject.push_back(MakePath("635280, 814060, 253680, 814060, 253680, 797700, 635280, 797700"));
 
 
-    PolyTree64 pt;
-    BooleanOp(ClipType::Union, FillRule::Positive, subject, clip, pt);
-    DisplayPolyTree(pt);
-}
+//     PolyTree64 pt;
+//     BooleanOp(ClipType::Union, FillRule::Positive, subject, clip, pt);
+//     DisplayPolyTree(pt);
+// }
