@@ -1,7 +1,6 @@
 ﻿/*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.4                                            *
-* Date      :  5 September 2022                                                *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This is the main polygon clipping module                        *
@@ -15,14 +14,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.ConstrainedExecution;
 
 namespace Clipper2Lib
 {
-
-  using Path64  = List<Point64>;
-  using Paths64 = List<List<Point64>>;
-  using PathD   = List<PointD>;
-  using PathsD  = List<List<PointD>>;
 
   // Vertex: a pre-clipping data structure. It is used to separate polygons
   // into ascending and descending 'bounds' (or sides) that start at local
@@ -62,7 +57,7 @@ namespace Clipper2Lib
     }
   };
 
-  internal struct LocalMinima
+  internal readonly struct LocalMinima
   {
     public readonly Vertex vertex;
     public readonly PathType polytype;
@@ -85,7 +80,7 @@ namespace Clipper2Lib
       return !(lm1 == lm2);
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
       return obj is LocalMinima minima && this == minima;
     }
@@ -150,7 +145,7 @@ namespace Clipper2Lib
     public Active? frontEdge;
     public Active? backEdge;
     public OutPt? pts;
-    public PolyPathBase? polypath;
+    public PolyPathNode? polypath;
     public Rect64 bounds;
     public Path64 path;
     public bool isOpen;
@@ -173,7 +168,7 @@ namespace Clipper2Lib
 
     public Joiner(OutPt op1, OutPt? op2, Joiner? nextH)
     {
-      this.idx = -1;
+      idx = -1;
       this.nextH = nextH;
       this.op1 = op1;
       this.op2 = op2;
@@ -264,6 +259,11 @@ namespace Clipper2Lib
     }
 
 #if USINGZ
+    private bool XYCoordsEqual(Point64 pt1, Point64 pt2)
+    {
+      return (pt1.X == pt2.X && pt1.Y == pt2.Y);
+    }
+    
     private void SetZ(Active e1, Active e2, ref Point64 intersectPt)
     {
       if (_zCallback == null) return;
@@ -426,8 +426,10 @@ namespace Clipper2Lib
       b2 = ae2.bot.X - ae2.bot.Y * ae2.dx;
       double q = (b2 - b1) / (ae1.dx - ae2.dx);
       return (Math.Abs(ae1.dx) < Math.Abs(ae2.dx))
-        ? new Point64((long) Math.Round(ae1.dx * q + b1), (long) Math.Round(q))
-        : new Point64((long) Math.Round(ae2.dx * q + b2), (long) Math.Round(q));
+        //? new Point64((long) Math.Round(ae1.dx * q + b1), (long) Math.Round(q))
+        //: new Point64((long) Math.Round(ae2.dx * q + b2), (long) Math.Round(q));
+        ? new Point64((long)(ae1.dx * q + b1), (long)(q))
+        : new Point64((long)(ae2.dx * q + b2), (long)(q));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -446,7 +448,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Vertex PrevPrevVertex(Active ae)
+    private static Vertex PrevPrevVertex(Active ae)
     {
       if (ae.windDx > 0)
         return ae.vertexTop!.prev!.prev!;
@@ -466,7 +468,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Active? GetMaximaPair(Active ae)
+    private static Active? GetMaximaPair(Active ae)
     {
       Active? ae2;
       ae2 = ae.nextInAEL;
@@ -515,9 +517,9 @@ namespace Clipper2Lib
       {
         if (a.pt.Y == b.pt.Y)
         {
+          if (a.pt.X == b.pt.X) return 0;
           return (a.pt.X < b.pt.X) ? -1 : 1;
         }
-
         return (a.pt.Y > b.pt.Y) ? -1 : 1;
       }
     }
@@ -605,7 +607,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool OutrecIsAscending(Active hotEdge)
+    private static bool OutrecIsAscending(Active hotEdge)
 	  {
 		  return (hotEdge == hotEdge.outrec!.frontEdge);
 	  }
@@ -1035,7 +1037,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsValidAelOrder(Active resident, Active newcomer)
+    private static bool IsValidAelOrder(Active resident, Active newcomer)
     {
       if (newcomer.curX != resident.curX)
         return newcomer.curX > resident.curX;
@@ -1106,7 +1108,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void InsertRightEdge(Active ae, Active ae2)
+    private static void InsertRightEdge(Active ae, Active ae2)
     {
       ae2.nextInAEL = ae.nextInAEL;
       if (ae.nextInAEL != null) ae.nextInAEL.prevInAEL = ae2;
@@ -1260,7 +1262,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TestJoinWithPrev1(Active e)
+    private static bool TestJoinWithPrev1(Active e)
     {
       // this is marginally quicker than TestJoinWithPrev2
       // but can only be used when e.PrevInAEL.currX is accurate
@@ -1271,7 +1273,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TestJoinWithPrev2(Active e, Point64 currPt)
+    private static bool TestJoinWithPrev2(Active e, Point64 currPt)
     {
       return IsHotEdge(e) && !IsOpen(e) &&
              (e.prevInAEL != null) && !IsOpen(e.prevInAEL) &&
@@ -1281,7 +1283,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TestJoinWithNext1(Active e)
+    private static bool TestJoinWithNext1(Active e)
     {
       // this is marginally quicker than TestJoinWithNext2
       // but can only be used when e.NextInAEL.currX is accurate
@@ -1292,7 +1294,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TestJoinWithNext2(Active e, Point64 currPt)
+    private static bool TestJoinWithNext2(Active e, Point64 currPt)
     {
       return IsHotEdge(e) && !IsOpen(e) &&
              (e.nextInAEL != null) && !IsOpen(e.nextInAEL) &&
@@ -1383,8 +1385,7 @@ namespace Clipper2Lib
         result = outrec.pts;
 
         outrec.owner = GetRealOutRec(outrec.owner);
-        if (_using_polytree && outrec.owner != null &&
-          outrec.owner.frontEdge == null)
+        if (_using_polytree && outrec.owner is { frontEdge: null })
             outrec.owner = GetRealOutRec(outrec.owner.owner);
       }
       // and to preserve the winding orientation of outrec ...
@@ -1404,7 +1405,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void JoinOutrecPaths(Active ae1, Active ae2)
+    private static void JoinOutrecPaths(Active ae1, Active ae2)
     {
       // join ae2 outrec path onto ae1 outrec path and then delete ae2 outrec path
       // pointers. (NB Only very rarely do the joining ends share the same coords.)
@@ -1441,8 +1442,7 @@ namespace Clipper2Lib
       if (ae2.outrec.owner != null &&
         ae2.outrec.owner.idx < ae1.outrec.idx)
       {
-        if (ae1.outrec.owner == null ||
-          ae2.outrec.owner.idx < ae1.outrec.owner.idx)
+        if (ae1.outrec.owner == null || ae2.outrec.owner.idx < ae1.outrec.owner.idx)
             ae1.outrec.owner = ae2.outrec.owner;
       }
 
@@ -1464,7 +1464,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private OutPt AddOutPt(Active ae, Point64 pt)
+    private static OutPt AddOutPt(Active ae, Point64 pt)
     {
       OutPt newOp;
 
@@ -1535,7 +1535,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Active? FindEdgeWithMatchingLocMin(Active e)
+    private static Active? FindEdgeWithMatchingLocMin(Active e)
     {
       Active? result = e.nextInAEL;
       while (result != null)
@@ -1915,7 +1915,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Active? ExtractFromSEL(Active ae)
+    private static Active? ExtractFromSEL(Active ae)
     {
       Active? res = ae.nextInSEL;
       if (res != null)
@@ -1925,7 +1925,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void Insert1Before2InSEL(Active ae1, Active ae2)
+    private static void Insert1Before2InSEL(Active ae1, Active ae2)
     {
       ae1.prevInSEL = ae2.prevInSEL;
       if (ae1.prevInSEL != null)
@@ -2054,7 +2054,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool ResetHorzDirection(Active horz, Active? maxPair,
+    private static bool ResetHorzDirection(Active horz, Active? maxPair,
         out long leftX, out long rightX)
     {
       if (horz.bot.X == horz.top.X)
@@ -2079,14 +2079,14 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool HorzIsSpike(Active horz)
+    private static bool HorzIsSpike(Active horz)
     {
       Point64 nextPt = NextVertex(horz).pt;
       return (horz.bot.X < horz.top.X) != (horz.top.X < nextPt.X);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void TrimHorz(Active horzEdge, bool preserveCollinear)
+    private static void TrimHorz(Active horzEdge, bool preserveCollinear)
     {
       bool wasTrimmed = false;
       Point64 pt = NextVertex(horzEdge).pt;
@@ -2453,12 +2453,20 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool PointBetween(Point64 pt, Point64 corner1, Point64 corner2)
+    private static bool PointEqualOrBetween(Point64 pt, Point64 corner1, Point64 corner2)
     {
       // NB points may not be collinear
       return
         ValueEqualOrBetween(pt.X, corner1.X, corner2.X) &&
         ValueEqualOrBetween(pt.Y, corner1.Y, corner2.Y);
+    }
+
+    private static bool PointBetween(Point64 pt, Point64 corner1, Point64 corner2)
+    {
+      // NB points may not be collinear
+      return
+        ValueBetween(pt.X, corner1.X, corner2.X) &&
+        ValueBetween(pt.Y, corner1.Y, corner2.Y);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2543,7 +2551,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Joiner? GetHorzTrialParent(OutPt op)
+    private static Joiner? GetHorzTrialParent(OutPt op)
     {
       Joiner? joiner = op.joiner;
       while (joiner != null)
@@ -2565,7 +2573,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool OutPtInTrialHorzList(OutPt op)
+    private static bool OutPtInTrialHorzList(OutPt op)
     {
       return op.joiner != null &&
        ((op.joiner.idx < 0) || GetHorzTrialParent(op) != null);
@@ -2733,7 +2741,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool GetHorzExtendedHorzSeg(ref OutPt op, out OutPt op2)
+    private static bool GetHorzExtendedHorzSeg(ref OutPt op, out OutPt op2)
     {
       OutRec outRec = GetRealOutRec(op.outrec)!;
       op2 = op;
@@ -2826,9 +2834,8 @@ namespace Clipper2Lib
         // don't waste time trying to join adjacent vertices
         ((op1.next == op2) && (op1 != op1.outrec.pts)) ||
         ((op2.next == op1) && (op2 != op1.outrec.pts)))) return;
-        
-      Joiner joiner = new Joiner(op1, op2, null);
-      joiner.idx = _joinerList.Count;
+
+      Joiner joiner = new Joiner(op1, op2, null) {idx = _joinerList.Count};
       _joinerList.Add(joiner);
     }
 
@@ -2993,7 +3000,7 @@ namespace Clipper2Lib
             // by inserting an extra vertex if needed
             if (op1.prev.pt != op2.next.pt)
             {
-              if (PointBetween(op1.prev.pt, op2.pt, op2.next.pt))
+              if (PointEqualOrBetween(op1.prev.pt, op2.pt, op2.next.pt))
                 op2.next = InsertOp(op1.prev.pt, op2);
               else
                 op1.prev = InsertOp(op2.next.pt, op1.prev);
@@ -3058,7 +3065,7 @@ namespace Clipper2Lib
             // by inserting an extra vertex if needed
             if (op2.prev.pt != op1.next.pt)
             {
-              if (PointBetween(op2.prev.pt, op1.pt, op1.next.pt))
+              if (PointEqualOrBetween(op2.prev.pt, op1.pt, op1.next.pt))
                 op1.next = InsertOp(op2.prev.pt, op1);
               else
                 op2.prev = InsertOp(op1.next.pt, op2.prev);
@@ -3204,8 +3211,7 @@ namespace Clipper2Lib
 
         if (_using_polytree)
         {
-          if (outrec.splits == null)
-            outrec.splits = new List<OutRec>();
+          outrec.splits ??= new List<OutRec>();
           outrec.splits.Add(newOr);
         }
 
@@ -3336,7 +3342,7 @@ namespace Clipper2Lib
       }
     }
 
-    internal bool BuildPath(OutPt op, bool reverse, bool isOpen, Path64 path)
+    internal static bool BuildPath(OutPt op, bool reverse, bool isOpen, Path64 path)
     {
       if (op.next == op || (!isOpen && op.next == op.prev)) return false;
       path.Clear();
@@ -3401,7 +3407,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool Path1InsidePath2(OutRec or1, OutRec or2)
+    private static bool Path1InsidePath2(OutRec or1, OutRec or2)
     {
       PointInPolygonResult result;
       OutPt op = or1.pts!;
@@ -3411,11 +3417,13 @@ namespace Clipper2Lib
         if (result != PointInPolygonResult.IsOn) break;
         op = op.next!;
       } while (op != or1.pts);
+      if (result == PointInPolygonResult.IsOn)
+        return Area(op) < Area(or2.pts!);
       return result == PointInPolygonResult.IsInside;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Rect64 GetBounds(Path64 path)
+    private static Rect64 GetBounds(Path64 path)
 	  {
 		  if (path.Count == 0) return new Rect64();
       Rect64 result = new Rect64(long.MaxValue, long.MaxValue, -long.MaxValue, -long.MaxValue);
@@ -3473,7 +3481,7 @@ namespace Clipper2Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    protected bool BuildTree(PolyPathBase polytree, Paths64 solutionOpen)
+    protected bool BuildTree(PolyPathNode polytree, Paths64 solutionOpen)
     {
       polytree.Clear();
       solutionOpen.Clear();
@@ -3514,7 +3522,7 @@ namespace Clipper2Lib
             DeepCheckOwner(outrec, outrec.owner);
         }
 
-        PolyPathBase ownerPP;
+        PolyPathNode ownerPP;
         if (outrec.owner != null && outrec.owner.polypath != null)
           ownerPP = outrec.owner.polypath;
         else
@@ -3540,8 +3548,7 @@ namespace Clipper2Lib
           v = v.next!;
         } while (v != t);
       }
-      if (bounds.IsEmpty()) return new Rect64(0, 0, 0, 0);
-      return bounds;
+      return bounds.IsEmpty() ? new Rect64(0, 0, 0, 0) : bounds;
     }
 
   } // ClipperBase class
@@ -3549,9 +3556,6 @@ namespace Clipper2Lib
 
   public class Clipper64 : ClipperBase
   {
-    public Clipper64()
-    { }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal new void AddPath(Path64 path, PathType polytype, bool isOpen = false)
     {
@@ -3643,6 +3647,8 @@ namespace Clipper2Lib
 
   public class ClipperD : ClipperBase
   {
+    private static string precision_range_error = "Error: Precision is out of range.";
+
     private readonly double _scale;
     private readonly double _invScale;
 
@@ -3664,7 +3670,7 @@ namespace Clipper2Lib
     public ClipperD(int roundingDecimalPrecision = 2)
     {
       if (roundingDecimalPrecision < -8 || roundingDecimalPrecision > 8)
-        throw new ClipperLibException("Error - RoundingDecimalPrecision exceeds the allowed range.");
+        throw new ClipperLibException(precision_range_error);
       _scale = Math.Pow(10, roundingDecimalPrecision);
       _invScale = 1 / _scale;
     }
@@ -3814,29 +3820,66 @@ namespace Clipper2Lib
     }
   } // ClipperD class
 
-  public abstract class PolyPathBase : IEnumerable
+  public abstract class PolyPathNode : IEnumerable
   {
-    internal PolyPathBase? _parent;
-    internal List<PolyPathBase> _childs = new List<PolyPathBase>();
+    internal PolyPathNode? _parent;
+    internal List<PolyPathNode> _childs = new List<PolyPathNode>();
 
-    public PolyPathEnum GetEnumerator()
+    public IEnumerator GetEnumerator()
     {
-      return new PolyPathEnum(_childs);
+      return new NodeEnumerator(_childs);
     }
-    IEnumerator IEnumerable.GetEnumerator()
+    private class NodeEnumerator : IEnumerator
     {
-      return GetEnumerator();
-    }
+      private int position = -1;
+      private readonly List<PolyPathNode> _nodes;
+
+      [MethodImpl(MethodImplOptions.AggressiveInlining)]
+      public NodeEnumerator(List<PolyPathNode> nodes)
+      {
+        _nodes = new List<PolyPathNode>(nodes);
+      }
+
+      [MethodImpl(MethodImplOptions.AggressiveInlining)]
+      private IEnumerator getEnumerator()
+      {
+        return (IEnumerator) this;
+      }
+
+      [MethodImpl(MethodImplOptions.AggressiveInlining)]
+      public bool MoveNext()
+      {
+        position++;
+        return (position < _nodes.Count);
+      }
+
+      [MethodImpl(MethodImplOptions.AggressiveInlining)]
+      public void Reset()
+      {
+        position = -1;
+      }
+
+      public object Current
+      {
+        get
+        {
+          if (position < 0 || position >= _nodes.Count)
+            throw new InvalidOperationException();
+          return _nodes[position];
+        }
+      }
+
+    };
 
     public bool IsHole => GetIsHole();
 
-    public PolyPathBase(PolyPathBase? parent = null) { _parent = parent; }
+    public PolyPathNode(PolyPathNode? parent = null) { _parent = parent; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool GetIsHole()
     {
       bool result = true;
-      PolyPathBase? pp = _parent;
+      PolyPathNode? pp = _parent;
       while (pp != null)
       {
         result = !result;
@@ -3848,7 +3891,7 @@ namespace Clipper2Lib
 
     public int Count => _childs.Count;
 
-    internal abstract PolyPathBase AddChild(Path64 p);
+    internal abstract PolyPathNode AddChild(Path64 p);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
@@ -3857,52 +3900,16 @@ namespace Clipper2Lib
     }
   } // PolyPathBase class
 
-  public class PolyPathEnum : IEnumerator
-  {
-    public List<PolyPathBase> _ppbList;
-    private int position = -1;
-    public PolyPathEnum(List<PolyPathBase> childs)
-    {
-      _ppbList = childs;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext()
-    {
-      position++;
-      return (position < _ppbList.Count);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Reset()
-    {
-      position = -1;
-    }
-
-    public PolyPathBase Current
-    {
-      get
-      {
-        if (position < 0 || position >= _ppbList.Count)
-          throw new InvalidOperationException();
-        return _ppbList[position];
-      }
-    }
-
-    object IEnumerator.Current => Current;
-
-  }
-
-  public class PolyPath64 : PolyPathBase
+  public class PolyPath64 : PolyPathNode
   {
     public Path64? Polygon { get; private set; } // polytree root's polygon == null
 
-    public PolyPath64(PolyPathBase? parent = null) : base(parent) {}
+    public PolyPath64(PolyPathNode? parent = null) : base(parent) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal override PolyPathBase AddChild(Path64 p)
+    internal override PolyPathNode AddChild(Path64 p)
     {
-      PolyPathBase newChild = new PolyPath64(this);
+      PolyPathNode newChild = new PolyPath64(this);
       (newChild as PolyPath64)!.Polygon = p;
       _childs.Add(newChild);
       return newChild;
@@ -3922,7 +3929,7 @@ namespace Clipper2Lib
     public double Area()
     {
       double result = Polygon == null ? 0 : Clipper.Area(Polygon);
-      foreach (var polyPathBase in _childs)
+      foreach (PolyPathNode polyPathBase in _childs)
       {
         PolyPath64 child = (PolyPath64) polyPathBase;
         result += child.Area();
@@ -3931,17 +3938,17 @@ namespace Clipper2Lib
     }
   }
 
-  public class PolyPathD : PolyPathBase
+  public class PolyPathD : PolyPathNode
   {
     internal double Scale { get; set; }
     public PathD? Polygon { get; private set; }
 
-    public PolyPathD(PolyPathBase? parent = null) : base(parent) {}
+    public PolyPathD(PolyPathNode? parent = null) : base(parent) {}
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal override PolyPathBase AddChild(Path64 p)
+    internal override PolyPathNode AddChild(Path64 p)
     {
-      PolyPathBase newChild = new PolyPathD(this);
+      PolyPathNode newChild = new PolyPathD(this);
       (newChild as PolyPathD)!.Scale = Scale;
       (newChild as PolyPathD)!.Polygon = Clipper.ScalePathD(p, 1 / Scale);
       _childs.Add(newChild);
@@ -3962,7 +3969,7 @@ namespace Clipper2Lib
     public double Area()
     {
       double result = Polygon == null ? 0 : Clipper.Area(Polygon);
-      foreach (var polyPathBase in _childs)
+      foreach (PolyPathNode polyPathBase in _childs)
       {
         PolyPathD child = (PolyPathD) polyPathBase;
         result += child.Area();

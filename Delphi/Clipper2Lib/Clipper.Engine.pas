@@ -2,8 +2,7 @@ unit Clipper.Engine;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.4                                            *
-* Date      :  4 September 2022                                                *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This is the main polygon clipping module                        *
@@ -195,6 +194,7 @@ type
     function  StartOpenPath(e: PActive; const pt: TPoint64): POutPt;
     procedure UpdateEdgeIntoAEL(var e: PActive);
     function  IntersectEdges(e1, e2: PActive; pt: TPoint64): POutPt;
+    procedure DeleteEdges(var e: PActive);
     procedure DeleteFromAEL(e: PActive);
     procedure AdjustCurrXAndCopyToSEL(topY: Int64);
     procedure DoIntersections(const topY: Int64);
@@ -366,7 +366,7 @@ type
   end;
 
 resourcestring
-  rsClipper_RoundingErr = 'The decimal rounding value is invalid';
+  rsClipper_PrecisonErr = 'The decimal rounding value is invalid';
 
 implementation
 
@@ -517,6 +517,22 @@ begin
 end;
 //------------------------------------------------------------------------------
 
+function DblToInt64(val: double): Int64; {$IFDEF INLINE} inline; {$ENDIF}
+var
+  exp: integer;
+  i64: UInt64 absolute val;
+begin
+  //https://en.wikipedia.org/wiki/Double-precision_floating-point_format
+  Result := 0;
+  if i64 = 0 then Exit;
+  exp := Integer(Cardinal(i64 shr 52) and $7FF) - 1023;
+  //nb: when exp == 1024 then val == INF or NAN.
+  if exp < 0 then Exit;
+  Result := ((i64 and $1FFFFFFFFFFFFF) shr (52 - exp)) or (UInt64(1) shl exp);
+  if val < 0 then Result := -Result;
+end;
+//------------------------------------------------------------------------------
+
 function GetIntersectPoint(e1, e2: PActive): TPoint64;
 var
   b1, b2, m: Double;
@@ -552,10 +568,13 @@ begin
     with e1^ do b1 := bot.X - bot.Y * dx;
     with e2^ do b2 := bot.X - bot.Y * dx;
     m := (b2-b1)/(e1.dx - e2.dx);
-    Result.Y := round(m);
+    //Result.Y := Round(m); //Round(m);
+    Result.Y := DblToInt64(m); //Round(m);
     if Abs(e1.dx) < Abs(e2.dx) then
-      Result.X := round(e1.dx * m + b1) else
-      Result.X := round(e2.dx * m + b2);
+      Result.X := DblToInt64(e1.dx * m + b1) else
+      Result.X := DblToInt64(e2.dx * m + b2);
+//      Result.X := Round(e1.dx * m + b1) else
+//      Result.X := Round(e2.dx * m + b2);
   end;
 end;
 //------------------------------------------------------------------------------
@@ -1019,30 +1038,6 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function IntersectListSort(node1, node2: Pointer): Integer;
-var
-  pt1, pt2: PPoint64;
-  i: Int64;
-begin
-  pt1 := @PIntersectNode(node1).pt;
-  pt2 := @PIntersectNode(node2).pt;
-  i := pt2.Y - pt1.Y;
-  // note to self - can't return int64 values :)
-  if i > 0 then Result := 1
-  else if i < 0 then Result := -1
-  else if (pt1 = pt2) then Result := 0
-  else
-  begin
-    // Sort by X too. Not essential, but it significantly
-    // speeds up the secondary sort in ProcessIntersectList .
-    i := pt1.X - pt2.X;
-    if i > 0 then Result := 1
-    else if i < 0 then Result := -1
-    else Result := 0;
-  end;
-end;
-//------------------------------------------------------------------------------
-
 function TestJoinWithPrev1(e: PActive): Boolean;
 begin
   // this is marginally quicker than TestJoinWithPrev2
@@ -1176,7 +1171,7 @@ var
 begin
   try
     // in case of exceptions ...
-    while assigned(FActives) do DeleteFromAEL(FActives);
+    DeleteEdges(FActives);
     while assigned(FScanLine) do PopScanLine(dummy);
     DisposeIntersectNodes;
 
@@ -1893,7 +1888,7 @@ begin
     if (CrossProduct(op2.prev.pt, op2.pt, op2.next.pt) = 0) and
       (PointsEqual(op2.pt,op2.prev.pt) or
       PointsEqual(op2.pt,op2.next.pt) or
-      not preserveCollinear or
+      not FPreserveCollinear or
       (DotProduct(op2.prev.pt, op2.pt, op2.next.pt) < 0)) then
     begin
       if op2 = outRec.pts then outRec.pts := op2.prev;
@@ -2385,12 +2380,21 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function PointBetween(const pt, corner1, corner2: TPoint64): Boolean;
+function PointEqualOrBetween(const pt, corner1, corner2: TPoint64): Boolean;
   {$IFDEF INLINING} inline; {$ENDIF}
 begin
   // nb: points may not be collinear
   Result := ValueEqualOrBetween(pt.X, corner1.X, corner2.X) and
     ValueEqualOrBetween(pt.Y, corner1.Y, corner2.Y);
+end;
+//------------------------------------------------------------------------------
+
+function PointBetween(const pt, corner1, corner2: TPoint64): Boolean;
+  {$IFDEF INLINING} inline; {$ENDIF}
+begin
+  // nb: points may not be collinear
+  Result := ValueBetween(pt.X, corner1.X, corner2.X) and
+    ValueBetween(pt.Y, corner1.Y, corner2.Y);
 end;
 //------------------------------------------------------------------------------
 
@@ -2481,7 +2485,7 @@ begin
         // by inserting an extra vertex if needed
         if not PointsEqual(op1.prev.pt, op2.next.pt) then
         begin
-          if PointBetween(op1.prev.pt, op2.pt, op2.next.pt) then
+          if PointEqualOrBetween(op1.prev.pt, op2.pt, op2.next.pt) then
             op2.next := InsertOp(op1.prev.pt, op2) else
             op1.prev := InsertOp(op2.next.pt, op1.prev);
         end;
@@ -2504,9 +2508,6 @@ begin
         opB.prev := opA;
         op1.prev := op2;
         op2.next := op1;
-
-//        SafeDeleteOutPtJoiners(op2);
-//        DisposeOutPt(op2);
 
         if (or1.idx < or2.idx) then
         begin
@@ -2541,7 +2542,7 @@ begin
         // by inserting an extra vertex if needed
         if not PointsEqual(op1.next.pt, op2.prev.pt) then
         begin
-          if PointBetween(op2.prev.pt, op1.pt, op1.next.pt) then
+          if PointEqualOrBetween(op2.prev.pt, op1.pt, op1.next.pt) then
             op1.next := InsertOp(op2.prev.pt, op1) else
             op2.prev := InsertOp(op1.next.pt, op2.prev);
         end;
@@ -2962,6 +2963,19 @@ begin
 end;
 //------------------------------------------------------------------------------
 
+procedure TClipperBase.DeleteEdges(var e: PActive);
+var
+  e2: PActive;
+begin
+  while Assigned(e) do
+  begin
+    e2 := e;
+    e := e.nextInAEL;
+    Dispose(e2);
+  end;
+end;
+//------------------------------------------------------------------------------
+
 procedure TClipperBase.DeleteFromAEL(e: PActive);
 var
   aelPrev, aelNext: PActive;
@@ -3164,6 +3178,35 @@ begin
 end;
 //------------------------------------------------------------------------------
 
+function IntersectListSort(node1, node2: Pointer): Integer;
+var
+  pt1, pt2: PPoint64;
+  i: Int64;
+begin
+  if node1 = node2 then
+  begin
+    Result := 0;
+    Exit;
+  end;
+  pt1 := @PIntersectNode(node1).pt;
+  pt2 := @PIntersectNode(node2).pt;
+  i := pt2.Y - pt1.Y;
+  // note to self - can't return int64 values :)
+  if i > 0 then Result := 1
+  else if i < 0 then Result := -1
+  else if (pt1 = pt2) then Result := 0
+  else
+  begin
+    // Sort by X too. Not essential, but it significantly
+    // speeds up the secondary sort in ProcessIntersectList .
+    i := pt1.X - pt2.X;
+    if i > 0 then Result := 1
+    else if i < 0 then Result := -1
+    else Result := 0;
+  end;
+end;
+//------------------------------------------------------------------------------
+
 procedure TClipperBase.ProcessIntersectList;
 var
   i: Integer;
@@ -3171,19 +3214,21 @@ var
   nodeI, nodeJ: ^PIntersectNode;
   op1, op2: POutpt;
 begin
-  // The list of required intersections now needs to be processed in a specific
-  // order such that intersection points with the largest Y coords are processed
-  // before those with the smallest Y coords. However, it's critical that edges
-  // are adjacent at the time of intersection.
+  // The list of required intersections now needs to be processed in a
+  // specific order such that intersection points with the largest Y coords
+  // are processed before those with the smallest Y coords. However,
+  // it's critical that edges are adjacent at the time of intersection, but
+  // that can only be checked during processing (when edge positions change).
 
   // First we do a quicksort so that intersections will be processed
-  // generally from largest Y to smallest
+  // mostly from largest Y to smallest
   FIntersectList.Sort(IntersectListSort);
+
   nodeI := @FIntersectList.List[0];
   for i := 0 to FIntersectList.Count - 1 do
   begin
-    // now make sure edges are adjacent, otherwise
-    // change the intersection order before proceeding
+    // during processing, make sure edges are adjacent before
+    // proceeding, and swapping the order if they aren't adjacent.
     if not EdgesAdjacentInAEL(nodeI^) then
     begin
       nodeJ := nodeI;
@@ -3251,11 +3296,12 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function TrimHorz(horzEdge: PActive; preserveCollinear: Boolean): Boolean;
+procedure TrimHorz(horzEdge: PActive; preserveCollinear: Boolean);
 var
   pt: TPoint64;
+  wasTrimmed: Boolean;
 begin
-  Result := false;
+  wasTrimmed := false;
   pt := NextVertex(horzEdge).pt;
   while (pt.Y = horzEdge.top.Y) do
   begin
@@ -3267,11 +3313,11 @@ begin
 
     horzEdge.vertTop := NextVertex(horzEdge);
     horzEdge.top := pt;
-    Result := true;
+    wasTrimmed := true;
     if IsMaxima(horzEdge) then Break;
     pt := NextVertex(horzEdge).pt;
-    end;
-  if (Result) then SetDx(horzEdge); // +/-infinity
+  end;
+  if wasTrimmed then SetDx(horzEdge); // +/-infinity
 end;
 //------------------------------------------------------------------------------
 
@@ -3870,7 +3916,11 @@ begin
     if pipResult <> pipOn then Break;
     op := op.next;
   until op = or1.pts;
-  Result := pipResult = pipInside;
+  if (pipResult = pipOn) then
+  begin
+     Result := Area(op) < Area(or2.pts);
+  end else
+    Result := pipResult = pipInside;
 end;
 //------------------------------------------------------------------------------
 
@@ -4240,7 +4290,7 @@ begin
   inherited Create;
   if (roundingDecimalPrecision < -8) or
     (roundingDecimalPrecision > 8) then
-      Raise EClipperLibException(rsClipper_RoundingErr);
+      Raise EClipperLibException(rsClipper_PrecisonErr);
   FScale := Math.Power(10, roundingDecimalPrecision);
   FInvScale := 1/FScale;
 end;

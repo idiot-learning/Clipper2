@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <ApplicationIcon>Clipper2.ico</ApplicationIcon>
   </PropertyGroup>
@@ -18,12 +18,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="*.svg" />
-    <None Remove="*.txt" />
-    <None Remove="*.ico" />
-  </ItemGroup>
-
-  <ItemGroup>
     <EmbeddedResource Include="clip.bin" />
     <EmbeddedResource Include="subj.bin" />
   </ItemGroup>
@@ -37,7 +31,11 @@
   <ItemGroup>
     <Resource Include="Clipper2.ico" />
     <Resource Include="Main.cs" />
-    <Resource Include="tests.txt" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="*.svg" />
+    <None Remove="*.ico" />
+  </ItemGroup>
+  
 </Project>

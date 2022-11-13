@@ -1,11 +1,9 @@
 ﻿/*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Date      :  6 April 2022                                                    *
+* Date      :  16 September 2022                                               *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
-* License:                                                                     *
-* Use, modification & distribution is subject to Boost Software License Ver 1. *
-* http://www.boost.org/LICENSE_1_0.txt                                         *
+* License   :  http://www.boost.org/LICENSE_1_0.txt                            *
 *******************************************************************************/
 
 using System;
@@ -15,11 +13,6 @@ using System.IO;
 
 namespace Clipper2Lib
 {
-
-  using PathD = List<PointD>;
-  using Paths64 = List<List<Point64>>;
-  using PathsD = List<List<PointD>>;
-
   public class SimpleSvgWriter
   {
 
@@ -36,10 +29,12 @@ namespace Clipper2Lib
     public const uint fuscia = 0xFFFF00FF;
     public const uint aqua = 0xFF00FFFF;
 
-    public static RectD RectMax =
-      new RectD(double.MaxValue, double.MaxValue, -double.MaxValue, -double.MaxValue);
-    public static RectD RectEmpty = new RectD(0, 0, 0, 0);
+    private static RectD rectMax =
+      new (double.MaxValue, double.MaxValue, -double.MaxValue, -double.MaxValue);
+    public static RectD RectMax => rectMax;
 
+    private static RectD rectEmpty = new (0, 0, 0, 0);
+    public static RectD RectEmpty => rectEmpty;
     internal static bool IsValidRect(RectD rec)
     {
       return rec.right >= rec.left && rec.bottom >= rec.top;
@@ -97,8 +92,8 @@ namespace Clipper2Lib
     }
 
     public FillRule FillRule { get; set; }
-    private readonly List<PolyInfo> PolyInfoList = new List<PolyInfo>();
-    private readonly List<TextInfo> textInfos = new List<TextInfo>();
+    private readonly List<PolyInfo> PolyInfoList = new ();
+    private readonly List<TextInfo> textInfos = new ();
     private readonly CoordStyle coordStyle;
 
     private const string svg_header = "<?xml version=\"1.0\" standalone=\"no\"?>\n" +
@@ -158,7 +153,7 @@ namespace Clipper2Lib
 
     private RectD GetBounds()
     {
-      RectD bounds = new RectD(RectMax);
+      RectD bounds = new (RectMax);
       foreach (PolyInfo pi in PolyInfoList)
         foreach (PathD path in pi.paths)
           foreach (PointD pt in path)
@@ -198,8 +193,15 @@ namespace Clipper2Lib
       long offsetX = margin - (long) (bounds.left * scale);
       long offsetY = margin - (long) (bounds.top * scale);
 
-      StreamWriter writer = new StreamWriter(filename);
-      if (writer == null) return false;
+      StreamWriter writer;
+      try
+      {
+        writer = new StreamWriter(filename);
+      }
+      catch
+      {
+        return false;
+      }
 
       if (maxWidth <= 0 || maxHeight <= 0)
         writer.Write(svg_header, (bounds.right - bounds.left) + margin * 2,
@@ -237,8 +239,7 @@ namespace Clipper2Lib
 
         if (pi.ShowCoords)
         {
-          writer.Write(string.Format("<g font-family=\"{0}\" font-size=\"{1}\" fill=\"{2}\">\n",
-            coordStyle.FontName, coordStyle.FontSize, ColorToHtml(coordStyle.FontColor)));
+          writer.Write("<g font-family=\"{0}\" font-size=\"{1}\" fill=\"{2}\">\n", coordStyle.FontName, coordStyle.FontSize, ColorToHtml(coordStyle.FontColor));
           foreach (PathD path in pi.paths)
           {
             foreach (PointD pt in path)
@@ -248,9 +249,7 @@ namespace Clipper2Lib
                   "<text x=\"{0}\" y=\"{1}\">{2},{3},{4}</text>\n",
                   (int)(pt.x * scale + offsetX), (int)(pt.y * scale + offsetY), pt.x, pt.y, pt.z));
 #else
-              writer.Write(string.Format(
-                  "<text x=\"{0:f2}\" y=\"{1:f2}\">{2},{3}</text>\n",
-                  (pt.x * scale + offsetX), (pt.y * scale + offsetY), pt.x, pt.y));
+              writer.Write("<text x=\"{0:f2}\" y=\"{1:f2}\">{2},{3}</text>\n", (pt.x * scale + offsetX), (pt.y * scale + offsetY), pt.x, pt.y);
 #endif
             }
           }
@@ -260,15 +259,9 @@ namespace Clipper2Lib
 
       foreach (TextInfo captionInfo in textInfos)
       {
-        writer.Write(string.Format(
-            "<g font-family=\"Verdana\" font-style=\"normal\" " +
-            "font-weight=\"normal\" font-size=\"{0}\" fill=\"{1}\">\n",
-            captionInfo.fontSize, ColorToHtml(captionInfo.fontColor)));
-        writer.Write(string.Format(
-            "<text x=\"{0}\" y=\"{1}\">{2}</text>\n</g>\n",
-            captionInfo.posX + margin,
-            captionInfo.posY + margin,
-            captionInfo.text));
+        writer.Write("<g font-family=\"Verdana\" font-style=\"normal\" " +
+                     "font-weight=\"normal\" font-size=\"{0}\" fill=\"{1}\">\n", captionInfo.fontSize, ColorToHtml(captionInfo.fontColor));
+        writer.Write("<text x=\"{0}\" y=\"{1}\">{2}</text>\n</g>\n", captionInfo.posX + margin, captionInfo.posY + margin, captionInfo.text);
       }
 
       writer.Write("</svg>\n");

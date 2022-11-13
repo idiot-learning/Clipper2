@@ -1,7 +1,6 @@
 /*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.4                                            *
-* Date      :  4 September 2022                                                *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This is the main polygon clipping module                        *
@@ -14,7 +13,7 @@
 #include <vector>
 #include <numeric>
 #include <algorithm>
-#include "clipper.engine.h"
+#include "clipper2/clipper.engine.h"
 
 namespace Clipper2Lib {
 
@@ -114,18 +113,15 @@ namespace Clipper2Lib {
 		return prev;
 	}
 
-
 	inline bool IsFront(const Active& e)
 	{
 		return (&e == e.outrec->front_edge);
 	}
 
-
 	inline bool IsInvalidPath(OutPt* op)
 	{
 		return (!op || op->next == op);
 	}
-
 
 	/*******************************************************************************
 		*  Dx:                             0(90deg)                                    *
@@ -149,7 +145,9 @@ namespace Clipper2Lib {
 	{
 		if ((currentY == ae.top.y) || (ae.top.x == ae.bot.x)) return ae.top.x;
 		else if (currentY == ae.bot.y) return ae.bot.x;
-		else return ae.bot.x + static_cast<int64_t>(std::round(ae.dx * (currentY - ae.bot.y)));
+		else return ae.bot.x + static_cast<int64_t>(std::nearbyint(ae.dx * (currentY - ae.bot.y)));
+		// nb: std::nearbyint (or std::round) substantially *improves* performance here
+		// as it greatly improves the likelihood of edge adjacency in ProcessIntersectList().
 	}
 
 
@@ -216,10 +214,10 @@ namespace Clipper2Lib {
 			b2 = e2.bot.x - e2.bot.y * e2.dx;
 			double q = (b2 - b1) / (e1.dx - e2.dx);
 			return (abs(e1.dx) < abs(e2.dx)) ?
-				Point64(static_cast<int64_t>(std::round(e1.dx * q + b1)),
-					static_cast<int64_t>(std::round(q))) :
-				Point64(static_cast<int64_t>(std::round(e2.dx * q + b2)),
-					static_cast<int64_t>(std::round(q)));
+				Point64(static_cast<int64_t>((e1.dx * q + b1)),
+					static_cast<int64_t>((q))) :
+				Point64(static_cast<int64_t>((e2.dx * q + b2)),
+					static_cast<int64_t>((q)));
 		}
 	}
 
@@ -605,10 +603,19 @@ namespace Clipper2Lib {
 		Clear();
 	}
 
+	void ClipperBase::DeleteEdges(Active*& e) 
+	{
+		while (e)
+		{
+			Active* e2 = e;
+			e = e->next_in_ael;
+			delete e2;
+		}
+	}
 
 	void ClipperBase::CleanUp()
 	{
-		while (actives_) DeleteFromAEL(*actives_);
+		DeleteEdges(actives_);
 		scanline_list_ = std::priority_queue<int64_t>();
 		intersect_nodes_.clear();
 		DisposeAllOutRecs();
@@ -1133,6 +1140,8 @@ namespace Clipper2Lib {
 				left_bound = new Active();
 				left_bound->bot = local_minima->vertex->pt;
 				left_bound->curr_x = left_bound->bot.x;
+				left_bound->wind_cnt = 0,
+				left_bound->wind_cnt2 = 0,
 				left_bound->wind_dx = -1,
 				left_bound->vertex_top = local_minima->vertex->prev;  // ie descending
 				left_bound->top = left_bound->vertex_top->pt;
@@ -1150,6 +1159,8 @@ namespace Clipper2Lib {
 				right_bound = new Active();
 				right_bound->bot = local_minima->vertex->pt;
 				right_bound->curr_x = right_bound->bot.x;
+				right_bound->wind_cnt = 0,
+				right_bound->wind_cnt2 = 0,
 				right_bound->wind_dx = 1,
 				right_bound->vertex_top = local_minima->vertex->next;  // ie ascending
 				right_bound->top = right_bound->vertex_top->pt;
@@ -1482,21 +1493,6 @@ namespace Clipper2Lib {
 		}
 		FixSelfIntersects(outrec);
 	}
-
-
-	inline bool SegmentsIntersect(const Point64& seg1a, const Point64& seg1b,
-		const Point64& seg2a, const Point64& seg2b)
-	{
-		double dx1 = static_cast<double>(seg1a.x - seg1b.x);
-		double dy1 = static_cast<double>(seg1a.y - seg1b.y);
-		double dx2 = static_cast<double>(seg2a.x - seg2b.x);
-		double dy2 = static_cast<double>(seg2a.y - seg2b.y);
-		return (((dy1 * (seg2a.x - seg1a.x) - dx1 * (seg2a.y - seg1a.y)) *
-			(dy1 * (seg2b.x - seg1a.x) - dx1 * (seg2b.y - seg1a.y)) < 0) &&
-			((dy2 * (seg1a.x - seg2a.x) - dx2 * (seg1a.y - seg2a.y)) *
-				(dy2 * (seg1b.x - seg2a.x) - dx2 * (seg1b.y - seg2a.y)) < 0));
-	}
-
 
 	OutPt* ClipperBase::DoSplitOp(OutPt* outRecOp, OutPt* splitOp)
 	{
@@ -2293,9 +2289,9 @@ namespace Clipper2Lib {
 			(horzEdge.bot.x < horzEdge.top.x) != (horzEdge.top.x < nextPt.x);
 	}
 
-	bool TrimHorz(Active& horzEdge, bool preserveCollinear)
+	inline void TrimHorz(Active& horzEdge, bool preserveCollinear)
 	{
-		bool result = false;
+		bool wasTrimmed = false;
 		Point64 pt = NextVertex(horzEdge)->pt;
 		while (pt.y == horzEdge.top.y)
 		{
@@ -2307,13 +2303,12 @@ namespace Clipper2Lib {
 
 			horzEdge.vertex_top = NextVertex(horzEdge);
 			horzEdge.top = pt;
-			result = true;
+			wasTrimmed = true;
 			if (IsMaxima(horzEdge)) break;
 			pt = NextVertex(horzEdge)->pt;
 		}
 
-		if (result) SetDx(horzEdge); // +/-infinity
-		return result;
+		if (wasTrimmed) SetDx(horzEdge); // +/-infinity
 	}
 
 
@@ -2821,6 +2816,13 @@ namespace Clipper2Lib {
 	inline bool PointBetween(Point64 pt, Point64 corner1, Point64 corner2)
 	{
 		//NB points may not be collinear
+		return ValueBetween(pt.x, corner1.x, corner2.x) &&
+			ValueBetween(pt.y, corner1.y, corner2.y);
+	}
+
+	inline bool PointEqualOrBetween(Point64 pt, Point64 corner1, Point64 corner2)
+	{
+		//NB points may not be collinear
 		return ValueEqualOrBetween(pt.x, corner1.x, corner2.x) &&
 			ValueEqualOrBetween(pt.y, corner1.y, corner2.y);
 	}
@@ -2961,20 +2963,16 @@ namespace Clipper2Lib {
 	{
 		for (Joiner* j : joiner_list_)
 		{
-			if (!j)
-			{
-				continue;
-			}
-			else if (!succeeded_)
-			{
-				delete j;
-			}
-			else
+			if (!j) continue;
+			if (succeeded_)
 			{
 				OutRec* outrec = ProcessJoin(j);
 				CleanCollinear(outrec);
 			}
+			else 
+				delete j;
 		}
+
 		joiner_list_.resize(0);
 	}
 
@@ -3119,7 +3117,7 @@ namespace Clipper2Lib {
 					//by inserting an extra vertex if needed
 					if (op1->prev->pt != op2->next->pt)
 					{
-						if (PointBetween(op1->prev->pt, op2->pt, op2->next->pt))
+						if (PointEqualOrBetween(op1->prev->pt, op2->pt, op2->next->pt))
 							op2->next = InsertOp(op1->prev->pt, op2);
 						else
 							op1->prev = InsertOp(op2->next->pt, op1->prev);
@@ -3180,7 +3178,7 @@ namespace Clipper2Lib {
 					//by inserting an extra vertex if needed
 					if (op2->prev->pt != op1->next->pt)
 					{
-						if (PointBetween(op2->prev->pt, op1->pt, op1->next->pt))
+						if (PointEqualOrBetween(op2->prev->pt, op1->pt, op1->next->pt))
 							op1->next = InsertOp(op2->prev->pt, op1);
 						else
 							op2->prev = InsertOp(op1->next->pt, op2->prev);
@@ -3363,7 +3361,10 @@ namespace Clipper2Lib {
 			if (result != PointInPolygonResult::IsOn) break;
 			op = op->next;
 		} while (op != or1->pts);
-		return result == PointInPolygonResult::IsInside;
+		if (result == PointInPolygonResult::IsOn)
+			return Area(op) < Area(or2->pts);
+		else
+			return result == PointInPolygonResult::IsInside;
 	}
 
 	inline Rect64 GetBounds(const Path64& path)

@@ -1,7 +1,6 @@
 /*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.4                                            *
-* Date      :  4 August 2022                                                   *
+* Date      :  21 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This module provides a simple interface to the Clipper Library  *
@@ -18,9 +17,12 @@
 #include "clipper.engine.h"
 #include "clipper.offset.h"
 #include "clipper.minkowski.h"
+#include "clipper.rectclip.h"
 
-namespace Clipper2Lib 
-{
+namespace Clipper2Lib {
+
+  static const char* precision_error = 
+    "Precision exceeds the permitted range";
 
   static const Rect64 MaxInvalidRect64 = Rect64(
     (std::numeric_limits<int64_t>::max)(),
@@ -36,7 +38,7 @@ namespace Clipper2Lib
 
   inline Paths64 BooleanOp(ClipType cliptype, FillRule fillrule,
     const Paths64& subjects, const Paths64& clips)
-  {
+  {    
     Paths64 result;
     Clipper64 clipper;
     clipper.AddSubject(subjects);
@@ -59,7 +61,7 @@ namespace Clipper2Lib
     const PathsD& subjects, const PathsD& clips, int decimal_prec = 2)
   {
     if (decimal_prec > 8 || decimal_prec < -8)
-      throw Clipper2Exception("invalid decimal precision");
+      throw Clipper2Exception(precision_error);
     PathsD result;
     ClipperD clipper(decimal_prec);
     clipper.AddSubject(subjects);
@@ -100,7 +102,7 @@ namespace Clipper2Lib
   inline PathsD Union(const PathsD& subjects, FillRule fillrule, int decimal_prec = 2)
   {
     if (decimal_prec > 8 || decimal_prec < -8)
-      throw Clipper2Exception("invalid decimal precision");
+      throw Clipper2Exception(precision_error);
     PathsD result;
     ClipperD clipper(decimal_prec);
     clipper.AddSubject(subjects);
@@ -128,11 +130,6 @@ namespace Clipper2Lib
     return BooleanOp(ClipType::Xor, fillrule, subjects, clips, decimal_prec);
   }
 
-  inline bool IsFullOpenEndType(EndType et)
-  {
-    return (et != EndType::Polygon) && (et != EndType::Joined);
-  }
-
   inline Paths64 InflatePaths(const Paths64& paths, double delta,
     JoinType jt, EndType et, double miter_limit = 2.0)
   {
@@ -145,7 +142,7 @@ namespace Clipper2Lib
     JoinType jt, EndType et, double miter_limit = 2.0, double precision = 2)
   {
     if (precision < -8 || precision > 8)
-      throw new Clipper2Exception("Error: Precision exceeds the allowed range.");
+      throw new Clipper2Exception(precision_error);
     const double scale = std::pow(10, precision);
     ClipperOffset clip_offset(miter_limit);
     clip_offset.AddPaths(ScalePaths<int64_t,double>(paths, scale), jt, et);
@@ -247,6 +244,159 @@ namespace Clipper2Lib
     return rec;
   }
 
+  inline Path64 RectClip(const Rect64& rect, const Path64& path)
+  {
+    if (rect.IsEmpty() || path.empty()) return Path64();
+    Rect64 pathRec = Bounds(path);
+    if (!rect.Intersects(pathRec)) return Path64();
+    if (rect.Contains(pathRec)) return path;
+    class RectClip rc(rect);
+    return rc.Execute(path);
+  }
+  
+  inline Paths64 RectClip(const Rect64& rect, const Paths64& paths)
+  {
+    if (rect.IsEmpty() || paths.empty()) return Paths64();
+    class RectClip rc(rect);
+    Paths64 result;
+    result.reserve(paths.size());
+
+    for (const Path64& p : paths)
+    {
+      Rect64 pathRec = Bounds(p);
+      if (!rect.Intersects(pathRec)) 
+        continue;
+      else if (rect.Contains(pathRec))
+        result.push_back(p);
+      else
+      {
+        Path64 p2 = rc.Execute(p);
+        if (!p2.empty()) result.push_back(std::move(p2));
+      }
+    }
+    return result;
+  }
+
+  inline PathD RectClip(const RectD& rect, const PathD& path, int precision = 2)
+  {
+    if (rect.IsEmpty() || path.empty() ||
+      !rect.Contains(Bounds(path))) return PathD();
+    if (precision < -8 || precision > 8)
+      throw new Clipper2Exception(precision_error);
+    const double scale = std::pow(10, precision);
+    Rect64 r = ScaleRect<int64_t, double>(rect, scale);
+    class RectClip rc(r);
+    Path64 p = ScalePath<int64_t, double>(path, scale);
+    return ScalePath<double, int64_t>(rc.Execute(p), 1 / scale);
+  }
+
+  inline PathsD RectClip(const RectD& rect, const PathsD& paths, int precision = 2)
+  {
+    if (rect.IsEmpty() || paths.empty()) return PathsD();
+    if (precision < -8 || precision > 8)
+      throw new Clipper2Exception(precision_error);
+    const double scale = std::pow(10, precision);
+    Rect64 r = ScaleRect<int64_t, double>(rect, scale);
+    class RectClip rc(r);
+    PathsD result;
+    result.reserve(paths.size());
+    for (const PathD& path : paths) 
+    {
+      RectD pathRec = Bounds(path);
+      if (!rect.Intersects(pathRec))
+        continue;
+      else if (rect.Contains(pathRec))
+        result.push_back(path);
+      else
+      {
+        Path64 p = ScalePath<int64_t, double>(path, scale);
+        p = rc.Execute(p);
+        if (!p.empty()) 
+          result.push_back(ScalePath<double, int64_t>(p, 1 / scale));
+      }
+    }
+    return result;
+  }
+
+  inline Paths64 RectClipLines(const Rect64& rect, const Path64& path)
+  {
+    Paths64 result;
+    if (rect.IsEmpty() || path.empty()) return result;
+    Rect64 pathRec = Bounds(path);
+    if (!rect.Intersects(pathRec)) return result;
+    if (rect.Contains(pathRec)) 
+    {
+      result.push_back(path);
+      return result;
+    }
+    class RectClipLines rcl(rect);
+    return rcl.Execute(path);
+  }
+
+  inline Paths64 RectClipLines(const Rect64& rect, const Paths64& paths)
+  {
+    Paths64 result;
+    if (rect.IsEmpty() || paths.empty()) return result;
+    class RectClipLines rcl(rect);
+    for (const Path64& p : paths)
+    {
+      Rect64 pathRec = Bounds(p);
+      if (!rect.Intersects(pathRec))
+        continue;
+      else if (rect.Contains(pathRec))
+        result.push_back(p);
+      else
+      {
+        Paths64 pp = rcl.Execute(p);
+        if (!pp.empty()) 
+          result.insert(result.end(), pp.begin(), pp.end());
+      }
+    }
+    return result;
+  }
+
+  inline PathsD RectClipLines(const RectD& rect, const PathD& path, int precision = 2)
+  {
+    if (rect.IsEmpty() || path.empty() ||
+      !rect.Contains(Bounds(path))) return PathsD();
+    if (precision < -8 || precision > 8)
+      throw new Clipper2Exception(precision_error);
+    const double scale = std::pow(10, precision);
+    Rect64 r = ScaleRect<int64_t, double>(rect, scale);
+    class RectClipLines rcl(r);
+    Path64 p = ScalePath<int64_t, double>(path, scale);
+    return ScalePaths<double, int64_t>(rcl.Execute(p), 1 / scale);
+  }
+
+  inline PathsD RectClipLines(const RectD& rect, const PathsD& paths, int precision = 2)
+  {
+    PathsD result;
+    if (rect.IsEmpty() || paths.empty()) return result;
+    if (precision < -8 || precision > 8)
+      throw new Clipper2Exception(precision_error);
+    const double scale = std::pow(10, precision);
+    Rect64 r = ScaleRect<int64_t, double>(rect, scale);
+    class RectClipLines rcl(r);
+    result.reserve(paths.size());
+    for (const PathD& path : paths)
+    {
+      RectD pathRec = Bounds(path);
+      if (!rect.Intersects(pathRec))
+        continue;
+      else if (rect.Contains(pathRec))
+        result.push_back(path);
+      else
+      {
+        Path64 p = ScalePath<int64_t, double>(path, scale);
+        Paths64 pp = rcl.Execute(p);
+        if (pp.empty()) continue;
+        PathsD ppd = ScalePaths<double, int64_t>(pp, 1 / scale);
+        result.insert(result.end(), ppd.begin(), ppd.end());
+      }
+    }
+    return result;
+  }
+
   namespace details
   {
 
@@ -293,25 +443,24 @@ namespace Clipper2Lib
       val = 0;
       bool is_neg = *iter == '-';
       if (is_neg) ++iter;
-      int dec_pos = -1;
-      std::string::const_iterator start_iter = iter;
+      int dec_pos = 1;
+      const std::string::const_iterator start_iter = iter;
       while (iter != end_iter && (*iter == '.' ||
         ((*iter >= '0') && (*iter <= '9'))))
       {
         if (*iter == '.')
         {
-          if (dec_pos >= 0) return false;
+          if (dec_pos != 1) break;
           dec_pos = 0;
           ++iter;
           continue;
         }
-
-        if (dec_pos >= 0) dec_pos++;
+        if (dec_pos != 1) --dec_pos;
         val = val * 10 + ((int64_t)(*iter++) - '0');
       }
       if (iter == start_iter || dec_pos == 0) return false;
-      if (dec_pos > 0)
-        val *= std::pow(10, -dec_pos);
+      if (dec_pos < 0)
+        val *= std::pow(10, dec_pos);
       if (is_neg)
         val *= -1;
       return true;
@@ -379,15 +528,12 @@ namespace Clipper2Lib
     return true;
   }
 
-  inline Path64 MakePath(const std::string& s, const std::string& skip_chars = "")
+  inline Path64 MakePath(const std::string& s)
   {
+    const std::string skip_chars = " ,(){}[]";
     Path64 result;
     std::string::const_iterator s_iter = s.cbegin();
-    bool user_defined_skip = (skip_chars.size() > 0 && skip_chars != " ");
-    if (user_defined_skip)
-      details::SkipUserDefinedChars(s_iter, s.cend(), skip_chars);
-    else
-      details::SkipWhiteSpace(s_iter, s.cend());
+    details::SkipUserDefinedChars(s_iter, s.cend(), skip_chars);
     while (s_iter != s.cend())
     {
       int64_t y = 0, x = 0;
@@ -395,19 +541,17 @@ namespace Clipper2Lib
       details::SkipSpacesWithOptionalComma(s_iter, s.cend());
       if (!details::GetInt(s_iter, s.cend(), y)) break;
       result.push_back(Point64(x, y));
-      if (user_defined_skip)
-        details::SkipUserDefinedChars(s_iter, s.cend(), skip_chars);
-      else
-        details::SkipSpacesWithOptionalComma(s_iter, s.cend());
+      details::SkipUserDefinedChars(s_iter, s.cend(), skip_chars);
     }
     return result;
   }
   
   inline PathD MakePathD(const std::string& s)
   {
+    const std::string skip_chars = " ,(){}[]";
     PathD result;
     std::string::const_iterator s_iter = s.cbegin();
-    details::SkipWhiteSpace(s_iter, s.cend());
+    details::SkipUserDefinedChars(s_iter, s.cend(), skip_chars);
     while (s_iter != s.cend())
     {
       double y = 0, x = 0;
@@ -415,7 +559,7 @@ namespace Clipper2Lib
       details::SkipSpacesWithOptionalComma(s_iter, s.cend());
       if (!details::GetFloat(s_iter, s.cend(), y)) break;
       result.push_back(PointD(x, y));
-      details::SkipSpacesWithOptionalComma(s_iter, s.cend());
+      details::SkipUserDefinedChars(s_iter, s.cend(), skip_chars);
     }
     return result;
   }
@@ -460,7 +604,7 @@ namespace Clipper2Lib
     else
     {
       while (dst.size() > 2 &&
-        !CrossProduct(dst.end()[-1], dst.end()[-2], dst[0]))
+        !CrossProduct(dst[dst.size() - 1], dst[dst.size() - 2], dst[0]))
           dst.pop_back();
       if (dst.size() < 3) return Path64();
     }
@@ -470,7 +614,7 @@ namespace Clipper2Lib
   inline PathD TrimCollinear(const PathD& path, int precision, bool is_open_path = false)
   {
     if (precision > 8 || precision < -8) 
-      throw new Clipper2Exception("Error: Precision exceeds the allowed range.");
+      throw new Clipper2Exception(precision_error);
     const double scale = std::pow(10, precision);
     Path64 p = ScalePath<int64_t, double>(path, scale);
     p = TrimCollinear(p, is_open_path);

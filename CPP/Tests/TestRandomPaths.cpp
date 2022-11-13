@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "clipper.h"
+#include "clipper2/clipper.h"
 #include <fstream>
 #include <random>
 
@@ -113,7 +113,11 @@ TEST(Clipper2Tests, TestRandomPaths)
 {
   std::default_random_engine rng(42);
 
+#if DEBUG
+  for (int i = 0; i < 10; ++i)
+#else
   for (int i = 0; i < 750; ++i)
+#endif
   {
     const auto max_complexity = std::max(1, i / 10);
 
