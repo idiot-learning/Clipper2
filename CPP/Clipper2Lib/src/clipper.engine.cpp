@@ -1,7 +1,6 @@
 /*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.5                                            *
-* Date      :  2 October 2022                                                  *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This is the main polygon clipping module                        *
@@ -114,18 +113,15 @@ namespace Clipper2Lib {
 		return prev;
 	}
 
-
 	inline bool IsFront(const Active& e)
 	{
 		return (&e == e.outrec->front_edge);
 	}
 
-
 	inline bool IsInvalidPath(OutPt* op)
 	{
 		return (!op || op->next == op);
 	}
-
 
 	/*******************************************************************************
 		*  Dx:                             0(90deg)                                    *
@@ -149,7 +145,9 @@ namespace Clipper2Lib {
 	{
 		if ((currentY == ae.top.y) || (ae.top.x == ae.bot.x)) return ae.top.x;
 		else if (currentY == ae.bot.y) return ae.bot.x;
-		else return ae.bot.x + static_cast<int64_t>(std::round(ae.dx * (currentY - ae.bot.y)));
+		else return ae.bot.x + static_cast<int64_t>(std::nearbyint(ae.dx * (currentY - ae.bot.y)));
+		// nb: std::nearbyint (or std::round) substantially *improves* performance here
+		// as it greatly improves the likelihood of edge adjacency in ProcessIntersectList().
 	}
 
 
@@ -605,10 +603,19 @@ namespace Clipper2Lib {
 		Clear();
 	}
 
+	void ClipperBase::DeleteEdges(Active*& e) 
+	{
+		while (e)
+		{
+			Active* e2 = e;
+			e = e->next_in_ael;
+			delete e2;
+		}
+	}
 
 	void ClipperBase::CleanUp()
 	{
-		while (actives_) DeleteFromAEL(*actives_);
+		DeleteEdges(actives_);
 		scanline_list_ = std::priority_queue<int64_t>();
 		intersect_nodes_.clear();
 		DisposeAllOutRecs();
@@ -1134,6 +1141,8 @@ namespace Clipper2Lib {
 				left_bound = new Active();
 				left_bound->bot = local_minima->vertex->pt;
 				left_bound->curr_x = left_bound->bot.x;
+				left_bound->wind_cnt = 0,
+				left_bound->wind_cnt2 = 0,
 				left_bound->wind_dx = -1,
 				left_bound->vertex_top = local_minima->vertex->prev;  // ie descending
 				left_bound->top = left_bound->vertex_top->pt;
@@ -1151,6 +1160,8 @@ namespace Clipper2Lib {
 				right_bound = new Active();
 				right_bound->bot = local_minima->vertex->pt;
 				right_bound->curr_x = right_bound->bot.x;
+				right_bound->wind_cnt = 0,
+				right_bound->wind_cnt2 = 0,
 				right_bound->wind_dx = 1,
 				right_bound->vertex_top = local_minima->vertex->next;  // ie ascending
 				right_bound->top = right_bound->vertex_top->pt;

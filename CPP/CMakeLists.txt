@@ -26,6 +26,7 @@ set(CLIPPER2_INC
 set(CLIPPER2_SRC
   Clipper2Lib/src/clipper.engine.cpp
   Clipper2Lib/src/clipper.offset.cpp
+  Clipper2Lib/src/clipper.rectclip.cpp
 )
 
 set(PCFILE "${CMAKE_CURRENT_BINARY_DIR}/Clipper2.pc")
@@ -151,20 +152,21 @@ if(CLIPPER2_TESTS)
   set_target_properties(gtest gtest_main PROPERTIES FOLDER GTest)
 
   set(ClipperTests_SRC
-    # Tests/TestLines.cpp
-    # Tests/TestOffsetOrientation.cpp
-    # Tests/TestOrientation.cpp
-    # Tests/TestPolygons.cpp
-    # Tests/TestPolytreeHoles1.cpp
-    # Tests/TestPolytreeHoles2.cpp
-    # Tests/TestPolytreeIntersection.cpp
-    # Tests/TestPolytreeUnion.cpp
-    # Tests/TestRandomPaths.cpp
-    # Tests/TestTrimCollinear.cpp
     #Tests/TestCoedge2107.cpp
     Tests/TestOverlapCase.cpp
     # Tests/TestAssociation.cpp
     # Tests/TestClipperLearning.cpp
+    Tests/TestLines.cpp
+    Tests/TestOffsetOrientation.cpp
+    Tests/TestOrientation.cpp
+    Tests/TestPolygons.cpp
+    Tests/TestPolytreeHoles1.cpp
+    Tests/TestPolytreeHoles2.cpp
+    Tests/TestPolytreeIntersection.cpp
+    Tests/TestPolytreeUnion.cpp
+    Tests/TestRandomPaths.cpp
+    Tests/TestRectClip.cpp
+    Tests/TestTrimCollinear.cpp
   )
   add_executable(ClipperTests ${ClipperTests_SRC})
   target_link_libraries(ClipperTests ChaoFileUtils gtest gtest_main Clipper2 Clipper2utils)

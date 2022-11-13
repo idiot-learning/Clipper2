@@ -1,7 +1,6 @@
 /*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.5                                            *
-* Date      :  4 October 2022                                                  *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  Core Clipper Library structures and functions                   *
@@ -115,7 +114,7 @@ struct Point {
 
 	friend std::ostream& operator<<(std::ostream& os, const Point& point)
 	{
-		os << point.x << "," << point.y << " ";
+		os << point.x << "," << point.y;
 		return os;
 	}
 #endif
@@ -416,6 +415,29 @@ struct Rect {
 		return os;
 	}
 };
+
+template <typename T1, typename T2>
+inline Rect<T1> ScaleRect(const Rect<T2>& rect, double scale)
+{
+	Rect<T1> result;
+
+	if constexpr (std::numeric_limits<T1>::is_integer &&
+		!std::numeric_limits<T2>::is_integer)
+	{
+		result.left = static_cast<T1>(std::round(rect.left * scale));
+		result.top = static_cast<T1>(std::round(rect.top * scale));
+		result.right = static_cast<T1>(std::round(rect.right * scale));
+		result.bottom = static_cast<T1>(std::round(rect.bottom * scale));
+	}
+	else
+	{
+		result.left = rect.left * scale;
+		result.top = rect.top * scale;
+		result.right = rect.right * scale;
+		result.bottom = rect.bottom * scale;
+	}
+	return result;
+}
 
 // clipper2Exception ---------------------------------------------------------
 

@@ -2,8 +2,7 @@ unit Clipper.Engine;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.5                                            *
-* Date      :  2 October 2022                                                  *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This is the main polygon clipping module                        *
@@ -195,6 +194,7 @@ type
     function  StartOpenPath(e: PActive; const pt: TPoint64): POutPt;
     procedure UpdateEdgeIntoAEL(var e: PActive);
     function  IntersectEdges(e1, e2: PActive; pt: TPoint64): POutPt;
+    procedure DeleteEdges(var e: PActive);
     procedure DeleteFromAEL(e: PActive);
     procedure AdjustCurrXAndCopyToSEL(topY: Int64);
     procedure DoIntersections(const topY: Int64);
@@ -366,7 +366,7 @@ type
   end;
 
 resourcestring
-  rsClipper_RoundingErr = 'The decimal rounding value is invalid';
+  rsClipper_PrecisonErr = 'The decimal rounding value is invalid';
 
 implementation
 
@@ -1171,7 +1171,7 @@ var
 begin
   try
     // in case of exceptions ...
-    while assigned(FActives) do DeleteFromAEL(FActives);
+    DeleteEdges(FActives);
     while assigned(FScanLine) do PopScanLine(dummy);
     DisposeIntersectNodes;
 
@@ -2963,6 +2963,19 @@ begin
 end;
 //------------------------------------------------------------------------------
 
+procedure TClipperBase.DeleteEdges(var e: PActive);
+var
+  e2: PActive;
+begin
+  while Assigned(e) do
+  begin
+    e2 := e;
+    e := e.nextInAEL;
+    Dispose(e2);
+  end;
+end;
+//------------------------------------------------------------------------------
+
 procedure TClipperBase.DeleteFromAEL(e: PActive);
 var
   aelPrev, aelNext: PActive;
@@ -4277,7 +4290,7 @@ begin
   inherited Create;
   if (roundingDecimalPrecision < -8) or
     (roundingDecimalPrecision > 8) then
-      Raise EClipperLibException(rsClipper_RoundingErr);
+      Raise EClipperLibException(rsClipper_PrecisonErr);
   FScale := Math.Power(10, roundingDecimalPrecision);
   FInvScale := 1/FScale;
 end;

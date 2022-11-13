@@ -1,7 +1,6 @@
 ﻿/*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  Clipper2 - ver.1.0.5                                            *
-* Date      :  5 October 2022                                                  *
+* Date      :  15 October 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  Path Offset (Inflate/Shrink)                                    *
@@ -361,7 +360,7 @@ namespace Clipper2Lib
         }
         // don't bother squaring angles that deviate < ~20 degrees because
         // squaring will be indistinguishable from mitering and just be a lot slower
-        else if (Math.Abs(sinA) < 0.25)
+        else if (cosA > 0.9)
           DoMiter(group, path, j, k, cosA); 
         else
           DoSquare(group, path, j, k);
