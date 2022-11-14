@@ -538,7 +538,7 @@ inline bool IsPositive(const Path<T>& poly)
 }
 
 inline bool SegmentsIntersect(const Point64& seg1a, const Point64& seg1b,
-	const Point64& seg2a, const Point64& seg2b, bool inclusive = false)
+	const Point64& seg2a, const Point64& seg2b, bool inclusive = true)
 {
 	if (inclusive) 
 	{

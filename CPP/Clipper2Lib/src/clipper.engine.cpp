@@ -1547,6 +1547,26 @@ namespace Clipper2Lib {
 			splitOp->prev = newOp;
 			splitOp->next->next = newOp;
 		}
+		else if((absArea2 >= 1) &&
+			((absArea2 < std::abs(area1) && ((area2 < 0) && (area1 > 0)))))
+		{
+			OutRec* newOutRec = new OutRec();
+			newOutRec->idx = outrec_list_.size();
+			outrec_list_.push_back(newOutRec);
+			newOutRec->owner = outRecOp->outrec;
+			newOutRec->polypath = nullptr;
+			splitOp->outrec = newOutRec;
+			splitOp->next->outrec = newOutRec;
+			
+			OutPt* newOp = new OutPt(ip, newOutRec);
+			newOp->prev = splitOp->next;
+			newOp->next = splitOp;
+			newOutRec->pts = newOp;
+			splitOp->prev = newOp;
+			splitOp->next->next = newOp;
+			
+
+		}
 		else
 		{
 			delete splitOp->next;
@@ -2167,7 +2187,7 @@ namespace Clipper2Lib {
 				left->jump = r_end;
 				while (left != l_end && right != r_end)
 				{
-					if (right->curr_x < left->curr_x)
+					if (right->curr_x <= left->curr_x)
 					{
 						tmp = right->prev_in_sel;
 						for (; ; )

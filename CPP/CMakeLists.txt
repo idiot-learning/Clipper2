@@ -155,7 +155,7 @@ if(CLIPPER2_TESTS)
     #Tests/TestCoedge2107.cpp
     Tests/TestOverlapCase.cpp
     # Tests/TestAssociation.cpp
-    # Tests/TestClipperLearning.cpp
+    Tests/TestClipperLearning.cpp
     Tests/TestLines.cpp
     Tests/TestOffsetOrientation.cpp
     Tests/TestOrientation.cpp
@@ -169,7 +169,8 @@ if(CLIPPER2_TESTS)
     Tests/TestTrimCollinear.cpp
   )
   add_executable(ClipperTests ${ClipperTests_SRC})
-  target_link_libraries(ClipperTests ChaoFileUtils gtest gtest_main Clipper2 Clipper2utils)
+  target_link_libraries(Clipper2 PUBLIC ChaoFileUtils)
+  target_link_libraries(ClipperTests  gtest gtest_main Clipper2 Clipper2utils)
 
   add_executable(ClipperTestsZ ${ClipperTests_SRC})
   target_link_libraries(ClipperTestsZ gtest gtest_main Clipper2Z Clipper2Zutils)

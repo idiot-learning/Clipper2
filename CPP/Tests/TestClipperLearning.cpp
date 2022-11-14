@@ -115,3 +115,55 @@ TEST(Clipper2Tests, TestLearningSquareCoedge) {
     SvgSaveToFile(svg, "solution.svg", 450, 450, 10);
     SystemTest("solution.svg");
 }
+
+TEST(Clipper2Tests, TestLearningCross) {
+    Clipper2Lib::Paths64 subject;
+    std::vector<std::pair<int, int>> path_data{{2, 1}, {5, 1}, {3, 4}, {4, 7}, {1, 7}, {3,4}};
+
+    Clipper2Lib::Path64 path;
+    int scale = 10;
+    for (auto each_pair : path_data) {
+        path.emplace_back(Clipper2Lib::Point64(each_pair.first*scale, each_pair.second*scale));
+    }
+    subject.push_back(path);
+    path.clear();
+
+    Clipper2Lib::Clipper64 cp;
+    cp.AddSubject(subject);
+    cp.PreserveCollinear = false;
+    Clipper2Lib::Paths64 clip_solution;
+    const bool ret = cp.Execute(Clipper2Lib::ClipType::Union, Clipper2Lib::FillRule::Positive, clip_solution);
+
+    Clipper2Lib::SvgWriter svg;
+    SvgAddSolution(svg, clip_solution, Clipper2Lib::FillRule::Positive, true);
+    //  bool is_positive = Clipper2Lib::IsPositive(clip_solution[0]);
+    SvgAddSubject(svg, subject, Clipper2Lib::FillRule::Positive);
+
+    SvgSaveToFile(svg, "solution.svg", 450, 450, 10);
+    SystemTest("solution.svg");
+}
+TEST(Clipper2Tests, TestLearningSquareHole) {
+    Clipper2Lib::Paths64 subject;
+    std::vector<std::pair<int, int>> path_data{{0, 0}, {4, 0}, {4, 4},{0,4},{0,3},{3,1},{1,1},{0,3} };
+
+    Clipper2Lib::Path64 path;
+    for (auto each_pair : path_data) {
+        path.emplace_back(Clipper2Lib::Point64(each_pair.first, each_pair.second));
+    }
+    subject.push_back(path);
+    path.clear();
+
+    Clipper2Lib::Clipper64 cp;
+    cp.AddSubject(subject);
+
+    Clipper2Lib::Paths64 clip_solution;
+    const bool ret = cp.Execute(Clipper2Lib::ClipType::Union, Clipper2Lib::FillRule::Positive, clip_solution);
+
+    Clipper2Lib::SvgWriter svg;
+    SvgAddSolution(svg, clip_solution, Clipper2Lib::FillRule::Positive, true);
+     bool is_positive = Clipper2Lib::IsPositive(clip_solution[0]);
+    SvgAddSubject(svg, subject, Clipper2Lib::FillRule::Positive);
+
+    SvgSaveToFile(svg, "solution.svg", 450, 450, 10);
+    SystemTest("solution.svg");
+ }
