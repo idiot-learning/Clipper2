@@ -2,7 +2,7 @@ unit Clipper.Core;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Date      :  15 October 2022                                                 *
+* Date      :  16 November 2022                                                *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  Core Clipper Library module                                     *
 *              Contains structures and functions used throughout the library   *
@@ -14,7 +14,7 @@ unit Clipper.Core;
 interface
 
 uses
-  SysUtils, Math;
+  SysUtils, Classes, Math;
 
 type
   PPoint64  = ^TPoint64;
@@ -100,11 +100,27 @@ type
     property MidPoint: TPointD read GetMidPoint;
   end;
 
+  TListEx = class
+  protected
+    fList       : TList;
+    fCount      : integer;
+  public
+    constructor Create(blockSize: integer = 8); virtual;
+    destructor Destroy; override;
+    procedure Clear; virtual;
+    function UnsafeGet(idx: integer): Pointer;
+    procedure UnsafeSwap(idx1, idx2: integer);
+    procedure UnsafeSet(idx: integer; val: Pointer);
+    function ListPtr: PPointer;
+    procedure Sort(Compare: TListSortCompare);
+    property Count: integer read fCount;
+  end;
+
   TClipType = (ctNone, ctIntersection, ctUnion, ctDifference, ctXor);
 
   TPointInPolygonResult = (pipInside, pipOutside, pipOn);
 
-  EClipperLibException = class(Exception);
+  EClipper2LibException = class(Exception);
 
 function Area(const path: TPath64): Double; overload;
 function Area(const paths: TPaths64): Double; overload;
@@ -116,6 +132,8 @@ function IsPositive(const path: TPath64): Boolean; overload;
   {$IFDEF INLINING} inline; {$ENDIF}
 function IsPositive(const path: TPathD): Boolean; overload;
   {$IFDEF INLINING} inline; {$ENDIF}
+
+function __Trunc(val: double): Int64; {$IFDEF INLINE} inline; {$ENDIF}
 
 function CrossProduct(const pt1, pt2, pt3: TPoint64): double; overload;
   {$IFDEF INLINING} inline; {$ENDIF}
@@ -264,11 +282,14 @@ procedure AppendPaths(var paths: TPaths64; const extra: TPaths64); overload;
 procedure AppendPaths(var paths: TPathsD; const extra: TPathsD); overload;
 
 function ArrayOfPathsToPaths(const ap: TArrayOfPaths): TPaths64;
-function GetIntersectPoint64(const ln1a, ln1b, ln2a, ln2b: TPoint64): TPoint64;
-function GetIntersectPointD(const ln1a, ln1b, ln2a, ln2b: TPoint64): TPointD; overload;
-function GetIntersectPointD(const ln1a, ln1b, ln2a, ln2b: TPointD): TPointD; overload;
+
+function GetIntersectPoint(const ln1a, ln1b, ln2a, ln2b: TPoint64;
+  out ip: TPoint64): Boolean;
 
 function PointInPolygon(const pt: TPoint64; const polygon: TPath64): TPointInPolygonResult;
+
+function GetClosestPointOnSegment(const pt, seg1, seg2: TPoint64): TPoint64;
+  {$IFDEF INLINING} inline; {$ENDIF}
 
 function RamerDouglasPeucker(const path: TPath64; epsilon: double): TPath64; overload;
 function RamerDouglasPeucker(const paths: TPaths64; epsilon: double): TPaths64; overload;
@@ -279,8 +300,12 @@ procedure GetSinCos(angle: double; out sinA, cosA: double);
 function Ellipse(const rec: TRect64; steps: integer = 0): TPath64; overload;
 function Ellipse(const rec: TRectD; steps: integer = 0): TPathD; overload;
 
+procedure CheckPrecisionRange(var precision: integer);
+
 const
   MaxInt64    = 9223372036854775807;
+  MaxCoord    = MaxInt64 div 4;
+  MinCoord    = - MaxCoord;
   invalid64   = MaxInt64;
   invalidD    = infinity;
 
@@ -293,6 +318,9 @@ const
   Tolerance   : Double = 1.0E-12;
 
 implementation
+
+resourcestring
+  rsClipper_PrecisonErr = 'The decimal rounding value is invalid';
 
 //------------------------------------------------------------------------------
 // TRect64 methods ...
@@ -425,12 +453,79 @@ begin
 end;
 
 //------------------------------------------------------------------------------
+// TListEx class
+//------------------------------------------------------------------------------
+
+constructor TListEx.Create(blockSize: integer = 8);
+begin
+  fList := TList.Create;
+end;
+//------------------------------------------------------------------------------
+
+destructor TListEx.Destroy;
+begin
+  Clear;
+  fList.Free;
+  inherited;
+end;
+//------------------------------------------------------------------------------
+
+procedure TListEx.Clear;
+begin
+  fCount := 0;
+  fList.Clear;
+end;
+//------------------------------------------------------------------------------
+
+procedure TListEx.Sort(Compare: TListSortCompare);
+begin
+  FList.Sort(Compare);
+end;
+//------------------------------------------------------------------------------
+
+function TListEx.UnsafeGet(idx: integer): Pointer;
+begin
+  Result := fList.List[idx];
+end;
+//------------------------------------------------------------------------------
+
+procedure TListEx.UnsafeSet(idx: integer; val: Pointer);
+begin
+  fList.List[idx] := val;
+end;
+//------------------------------------------------------------------------------
+
+procedure TListEx.UnsafeSwap(idx1, idx2: integer);
+var
+  p: Pointer;
+begin
+  p := UnsafeGet(idx1);
+  fList.List[idx1] := fList.List[idx2];
+  fList.List[idx2] := p;
+end;
+//------------------------------------------------------------------------------
+
+function TListEx.ListPtr: PPointer;
+begin
+  if fCount = 0 then
+    Result := nil else
+    Result := @fList.List[0];
+end;
+
+//------------------------------------------------------------------------------
 // Miscellaneous Functions ...
+//------------------------------------------------------------------------------
+
+procedure CheckPrecisionRange(var precision: integer);
+begin
+  if (precision < -8) or (precision > 8) then
+      Raise EClipper2LibException(rsClipper_PrecisonErr);
+end;
 //------------------------------------------------------------------------------
 
 procedure RaiseError(const msg: string); {$IFDEF INLINING} inline; {$ENDIF}
 begin
-  raise EClipperLibException.Create(msg);
+  raise EClipper2LibException.Create(msg);
 end;
 //------------------------------------------------------------------------------
 
@@ -1593,8 +1688,9 @@ function SegmentsIntersect(const s1a, s1b, s2a, s2b: TPoint64;
 var
   res1, res2, res3, res4: double;
 begin
-  if inclusive then //result can include segments that only touch
+  if inclusive then
   begin
+    //result can include segments that only touch
     Result := false;
     res1 := CrossProduct(s1a, s2a, s2b);
     res2 := CrossProduct(s1b, s2a, s2b);
@@ -1605,123 +1701,68 @@ begin
     Result := (res1 <> 0) or (res2 <> 0) or
       (res3 <> 0) or (res4 <> 0); // ensures not collinear
   end else
+  begin
     result := (CrossProduct(s1a, s2a, s2b) * CrossProduct(s1b, s2a, s2b) < 0) and
       (CrossProduct(s2a, s1a, s1b) * CrossProduct(s2b, s1a, s1b) < 0);
-end;
-//------------------------------------------------------------------------------
-
-function GetIntersectPoint64(const ln1a, ln1b, ln2a, ln2b: TPoint64): TPoint64;
-var
-  x, m1,b1,m2,b2: double;
-begin
-  // see http://astronomy.swin.edu.au/~pbourke/geometry/lineline2d/
-  if (ln1B.X = ln1A.X) then
-  begin
-    if (ln2B.X = ln2A.X) then exit; // parallel lines
-    m2 := (ln2B.Y - ln2A.Y)/(ln2B.X - ln2A.X);
-    b2 := ln2A.Y - m2 * ln2A.X;
-    Result.X := ln1A.X;
-    Result.Y := Round(m2*ln1A.X + b2);
-  end
-  else if (ln2B.X = ln2A.X) then
-  begin
-    m1 := (ln1B.Y - ln1A.Y)/(ln1B.X - ln1A.X);
-    b1 := ln1A.Y - m1 * ln1A.X;
-    Result.X := ln2A.X;
-    Result.Y := Round(m1*ln2A.X + b1);
-  end else
-  begin
-    m1 := (ln1B.Y - ln1A.Y)/(ln1B.X - ln1A.X);
-    b1 := ln1A.Y - m1 * ln1A.X;
-    m2 := (ln2B.Y - ln2A.Y)/(ln2B.X - ln2A.X);
-    b2 := ln2A.Y - m2 * ln2A.X;
-    if Abs(m1 - m2) > 1.0E-15 then
-    begin
-      x := (b2 - b1)/(m1 - m2);
-      Result.X := Round(x);
-      Result.Y := Round(m1 * x + b1);
-    end else
-    begin
-      Result.X := Round((ln1a.X + ln1b.X) * 0.5);
-      Result.Y := Round((ln1a.Y + ln1b.Y) * 0.5);
-    end;
   end;
 end;
 //------------------------------------------------------------------------------
 
-function GetIntersectPointD(const ln1a, ln1b, ln2a, ln2b: TPoint64): TPointD;
+function __Trunc(val: double): Int64; {$IFDEF INLINE} inline; {$ENDIF}
 var
-  m1,b1,m2,b2: double;
+  exp: integer;
+  i64: UInt64 absolute val;
+const
+  shl51: UInt64 =  UInt64(1) shl 51;
 begin
-  // see http://astronomy.swin.edu.au/~pbourke/geometry/lineline2d/
-  if (ln1B.X = ln1A.X) then
+  Result := 0;
+  if i64 = 0 then Exit;
+  exp := Integer(Cardinal(i64 shr 52) and $7FF) - 1023;
+  //nb: when exp == 1024 then val == INF or NAN.
+  if exp < 0 then
+    Exit
+  else if exp > 52 then
   begin
-    if (ln2B.X = ln2A.X) then exit; // parallel lines
-    m2 := (ln2B.Y - ln2A.Y)/(ln2B.X - ln2A.X);
-    b2 := ln2A.Y - m2 * ln2A.X;
-    Result.X := ln1A.X;
-    Result.Y := m2*ln1A.X + b2;
-  end
-  else if (ln2B.X = ln2A.X) then
-  begin
-    m1 := (ln1B.Y - ln1A.Y)/(ln1B.X - ln1A.X);
-    b1 := ln1A.Y - m1 * ln1A.X;
-    Result.X := ln2A.X;
-    Result.Y := m1*ln2A.X + b1;
+    Result := ((i64 and $1FFFFFFFFFFFFF) shl (exp - 52)) or (UInt64(1) shl exp)
   end else
   begin
-    m1 := (ln1B.Y - ln1A.Y)/(ln1B.X - ln1A.X);
-    b1 := ln1A.Y - m1 * ln1A.X;
-    m2 := (ln2B.Y - ln2A.Y)/(ln2B.X - ln2A.X);
-    b2 := ln2A.Y - m2 * ln2A.X;
-    if Abs(m1 - m2) > 1.0E-15 then
-    begin
-      Result.X := (b2 - b1)/(m1 - m2);
-      Result.Y := m1 * Result.X + b1;
-    end else
-    begin
-      Result.X := (ln1a.X + ln1b.X) * 0.5;
-      Result.Y := (ln1a.Y + ln1b.Y) * 0.5;
-    end;
+    Result := ((i64 and $1FFFFFFFFFFFFF) shr (52 - exp)) or (UInt64(1) shl exp);
+    //the following line will round
+    //if (i64 and (shl51 shr (exp)) <> 0) then inc(Result);
   end;
+  if val < 0 then Result := -Result;
 end;
 //------------------------------------------------------------------------------
 
-function GetIntersectPointD(const ln1a, ln1b, ln2a, ln2b: TPointD): TPointD; overload;
-var
-  m1,b1,m2,b2: double;
+function CheckCastInt64(val: double): Int64; {$IFDEF INLINE} inline; {$ENDIF}
 begin
-  // see http://astronomy.swin.edu.au/~pbourke/geometry/lineline2d/
-  if (ln1B.X = ln1A.X) then
+  if (val >= MaxCoord) or (val <= MinCoord) then
+    Raise EClipper2LibException.Create('overflow error.');
+  Result := Trunc(val);
+  //Result := __Trunc(val);
+end;
+//------------------------------------------------------------------------------
+
+function GetIntersectPoint(const ln1a, ln1b, ln2a, ln2b: TPoint64;
+  out ip: TPoint64): Boolean;
+var
+  dx1,dy1, dx2, dy2, q1, q2, cross_prod: double;
+begin
+  dy1 := (ln1b.y - ln1a.y);
+  dx1 := (ln1b.x - ln1a.x);
+  dy2 := (ln2b.y - ln2a.y);
+  dx2 := (ln2b.x - ln2a.x);
+  q1 := dy1 * ln1a.x - dx1 * ln1a.y;
+  q2 := dy2 * ln2a.x - dx2 * ln2a.y;
+  cross_prod := dy1 * dx2 - dy2 * dx1;
+  if (cross_prod = 0.0) then
   begin
-    if (ln2B.X = ln2A.X) then exit; // parallel lines
-    m2 := (ln2B.Y - ln2A.Y)/(ln2B.X - ln2A.X);
-    b2 := ln2A.Y - m2 * ln2A.X;
-    Result.X := ln1A.X;
-    Result.Y := m2*ln1A.X + b2;
-  end
-  else if (ln2B.X = ln2A.X) then
-  begin
-    m1 := (ln1B.Y - ln1A.Y)/(ln1B.X - ln1A.X);
-    b1 := ln1A.Y - m1 * ln1A.X;
-    Result.X := ln2A.X;
-    Result.Y := m1*ln2A.X + b1;
-  end else
-  begin
-    m1 := (ln1B.Y - ln1A.Y)/(ln1B.X - ln1A.X);
-    b1 := ln1A.Y - m1 * ln1A.X;
-    m2 := (ln2B.Y - ln2A.Y)/(ln2B.X - ln2A.X);
-    b2 := ln2A.Y - m2 * ln2A.X;
-    if Abs(m1 - m2) > 1.0E-15 then
-    begin
-      Result.X := (b2 - b1)/(m1 - m2);
-      Result.Y := m1 * Result.X + b1;
-    end else
-    begin
-      Result.X := (ln1a.X + ln1b.X) * 0.5;
-      Result.Y := (ln1a.Y + ln1b.Y) * 0.5;
-    end;
+    Result := false;
+    Exit;
   end;
+  ip.x := CheckCastInt64((dx2 * q1 - dx1 * q2) / cross_prod);
+  ip.y := CheckCastInt64((dy2 * q1 - dy1 * q2) / cross_prod);
+  Result := (ip.x <> invalid64) and (ip.y <> invalid64);
 end;
 //------------------------------------------------------------------------------
 
@@ -1843,6 +1884,26 @@ begin
     delta :=  PointD(delta.X * cosA - delta.Y * sinA,
       delta.Y * cosA + delta.X * sinA);
   end; // rotates clockwise
+end;
+//------------------------------------------------------------------------------
+
+function GetClosestPointOnSegment(const pt, seg1, seg2: TPoint64): TPoint64;
+var
+  dx, dy, q: double;
+begin
+    if (seg1.X = seg2.X) and (seg1.Y = seg2.Y) then
+    begin
+      Result := seg1;
+      Exit;
+    end;
+    dx := (seg2.X - seg1.X);
+    dy := (seg2.Y - seg1.Y);
+    q := ((pt.X - seg1.X) * dx + (pt.Y - seg1.Y) * dy) / (Sqr(dx) + Sqr(dy));
+    if (q < 0) then q := 0
+    else if (q > 1) then q := 1;
+    Result := Point64(
+      seg1.X + Round(q * dx),
+      seg1.Y + Round(q * dy));
 end;
 //------------------------------------------------------------------------------
 
