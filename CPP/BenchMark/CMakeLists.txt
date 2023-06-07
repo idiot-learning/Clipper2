@@ -16,6 +16,8 @@ message("fetching is done")
 set(benchmark_srcs
     StripDuplicateBenchmark.cpp
     CoedgeBenchmark.cpp
+    boostRbTree.cpp
+    boostRbTreeAlgorithm.cpp
     # more to add
 )
 

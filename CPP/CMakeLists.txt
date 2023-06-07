@@ -11,11 +11,14 @@ option(CLIPPER2_UTILS "Build utilities" ON)
 option(CLIPPER2_EXAMPLES "Build examples" ON)
 option(CLIPPER2_TESTS "Build tests" ON)
 option(USE_EXTERNAL_GTEST "Use system-wide installed GoogleTest" OFF)
-option(USE_EXTERNAL_GBENCHMARK "Use the googlebenchmark" OFF) 
+option(USE_EXTERNAL_GBENCHMARK "Use the googlebenchmark" ON) 
 option(BUILD_SHARED_LIBS "Build shared libs" OFF)
 set(CLIPPER2_USINGZ "ON" CACHE STRING "Build Clipper2Z, either \"ON\" or \"OFF\" or \"ONLY\"")
-
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(GNUInstallDirs)
+
+find_package(Boost 1.75 )
+include_directories(${Boost_INCLUDE_DIRS})
 
 set(CLIPPER2_INC
   Clipper2Lib/include/clipper2/clipper.h
