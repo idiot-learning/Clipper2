@@ -1,13 +1,7 @@
 #include <boost/intrusive/rbtree.hpp>
+#include <boost/intrusive/rbtree_algorithms.hpp>
 #include <cassert>
 #include <iostream>
-struct MyData
-{
-    int key;
-    // Other members of your data structure
-    boost::intrusive::set_member_hook<> member_hook;
-};
-
 
 struct Active {
 	//Point64 bot;
@@ -48,16 +42,6 @@ struct ActiveEdgeCompare
     }
 };
 
-struct MyDataCompare
-{
-    bool operator()(const MyData& lhs, const MyData& rhs) const
-    {
-        return lhs.key < rhs.key;
-    }
-};
-using MyRbTree = boost::intrusive::rbtree<MyData,
-                                           boost::intrusive::member_hook<MyData, boost::intrusive::set_member_hook<>, &MyData::member_hook>,
-                                           boost::intrusive::compare<MyDataCompare>>;
 using ActiveRbTree = boost::intrusive::rbtree<Active,
     boost::intrusive::member_hook<Active, boost::intrusive::set_member_hook<>, &Active::member_hook>,
     boost::intrusive::compare<ActiveEdgeCompare>>;
@@ -65,19 +49,28 @@ using ActiveRbTree = boost::intrusive::rbtree<Active,
 int main ()
 {
     ActiveRbTree active_rb_tree;
-    Active data1{42}; // Example data element
+    Active* sel; // use this to construct linked list for mergesort
+    // this is difficult to use
 
-    Active data2{17}; // Another example data element
-    Active data3{20};
+    Active data1{1}; // Example data element
+    Active data2{2}; // Another example data element
+    Active data3{3};
+    Active data4{4};
  
     active_rb_tree.insert_unique(data1);
     active_rb_tree.insert_unique(data2);
     active_rb_tree.insert_unique(data3);
-    active_rb_tree.insert_unique(data3);
+    active_rb_tree.insert_unique(data4);
+
+
     for(auto iter= active_rb_tree.begin(); iter!= active_rb_tree.end() ;iter++)
     {
-        auto value = iter->curr_x;
-        std::cout << "value is: " << value << std::endl;
+        auto curr_value = iter->curr_x;
+        
+        std::cout << "curr_value is: " << curr_value << std::endl;
+        std::cout << "next curr_value is: " << std::next(iter)->curr_x << std::endl;
+        if(std::next(iter) == active_rb_tree.end()) std::cout << "the end iterator is met" << std::endl;
+
     }
 
 

@@ -21,7 +21,8 @@ constexpr auto CLIPPER2_VERSION = "1.2.2";
 #include <memory>
 
 #include "clipper.core.h"
-
+#include <boost/intrusive/rbtree.hpp>
+#include <cassert>
 namespace Clipper2Lib {
 
 	struct Scanline;
@@ -111,6 +112,7 @@ namespace Clipper2Lib {
 		Point64 bot;
 		Point64 top;
 		int64_t curr_x = 0;		//current (updated at every new scanline)
+		int64_t sel_curr_x = 0; // this is the current_x of intersection point of edge with next scanline
 		double dx = 0.0;
 		int wind_dx = 1;			//1 or -1 depending on winding direction
 		int wind_cnt = 0;
@@ -132,7 +134,42 @@ namespace Clipper2Lib {
 		LocalMinima* local_min = nullptr;  // the bottom of an edge 'bound' (also Vatti)
 		bool is_left_bound = false;
 		JoinWith join_with = JoinWith::None;
+		boost::intrusive::set_member_hook<> member_hook;
 	};
+	
+	bool IsValidAelOrder(const Active& resident, const Active& newcomer);
+	struct ActiveEdgeCompare
+	{
+	    bool operator()(const Active& lhs, const Active& rhs)const
+	    {
+	        return IsValidAelOrder(lhs, rhs);
+	    }
+	};
+
+	using ActiveEdgeTree = boost::intrusive::rbtree<Active,
+    boost::intrusive::member_hook<Active, boost::intrusive::set_member_hook<>, &Active::member_hook>,
+    boost::intrusive::compare<ActiveEdgeCompare>>;
+
+
+	// struct ActiveNodeTraits
+	// {
+	//    typedef Active                                    node;
+	//    typedef Active *                                  node_ptr;
+	//    typedef const Active *                            const_node_ptr;
+	//    typedef int                                        color;
+	//    static node_ptr get_parent(const_node_ptr n)       {  return n->parent_;   }
+	//    static void set_parent(node_ptr n, node_ptr parent){  n->parent_ = parent; }
+	//    static node_ptr get_left(const_node_ptr n)         {  return n->left_;     }
+	//    static void set_left(node_ptr n, node_ptr left)    {  n->left_ = left;     }
+	//    static node_ptr get_right(const_node_ptr n)        {  return n->right_;    }
+	//    static void set_right(node_ptr n, node_ptr right)  {  n->right_ = right;   }
+	//    static color get_color(const_node_ptr n)           {  return n->color_;    }
+	//    static void set_color(node_ptr n, color c)         {  n->color_ = c;       }
+	//    static color black()                               {  return color(0);     }
+	//    static color red()                                 {  return color(1);     }
+	// };
+	// using RbTreeAlgo = boost::intrusive::rbtree_algorithms<ActiveNodeTraits> ;
+
 
 	struct LocalMinima {
 		Vertex* vertex;
@@ -204,13 +241,14 @@ namespace Clipper2Lib {
 		bool minima_list_sorted_ = false;
 		bool using_polytree_ = false;
 		Active* actives_ = nullptr;
+		ActiveEdgeTree actives_tree_;
 		Active *sel_ = nullptr;
 		LocalMinimaList minima_list_;		//pointers in case of memory reallocs
 		LocalMinimaList::iterator current_locmin_iter_;
 		std::vector<Vertex*> vertex_lists_;
 		std::priority_queue<int64_t> scanline_list_;
 		IntersectNodeList intersect_nodes_;
-    HorzSegmentList horz_seg_list_;
+    	HorzSegmentList horz_seg_list_;
 		std::vector<HorzJoin> horz_join_list_;
 		void Reset();
 		inline void InsertScanline(int64_t y);
@@ -233,6 +271,7 @@ namespace Clipper2Lib {
 		OutPt* IntersectEdges(Active &e1, Active &e2, const Point64& pt);
 		inline void DeleteFromAEL(Active &e);
 		inline void AdjustCurrXAndCopyToSEL(const int64_t top_y);
+		inline void AdjustSelCurrXAndCopyToSEL(const int64_t top_y);
 		void DoIntersections(const int64_t top_y);
 		void AddNewIntersectNode(Active &e1, Active &e2, const int64_t top_y);
 		bool BuildIntersectList(const int64_t top_y);
@@ -286,6 +325,16 @@ namespace Clipper2Lib {
 		bool ReverseSolution = false;
 		void Clear();
 		void AddReuseableData(const ReuseableDataContainer64& reuseable_data);
+		void PrintRbTree()
+		{
+			std::cout << "========start printing tht rb tree===========" << std::endl;
+			for(auto iter= actives_tree_.begin(); iter!= actives_tree_.end() ;iter++)
+    		{
+    		    auto curr_value = iter->curr_x;
+    		    std::cout << "curr_value is: " << curr_value << std::endl;
+    		}
+			std::cout << "========end of printing tht rb tree===========" << std::endl;
+		}
 #ifdef USINGZ
 		int64_t DefaultZ = 0;
 #endif

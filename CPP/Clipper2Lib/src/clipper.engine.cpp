@@ -1150,7 +1150,8 @@ namespace Clipper2Lib {
       bool contributing;
       left_bound->is_left_bound = true;
       InsertLeftEdge(*left_bound);
-
+      actives_tree_.insert_unique(*left_bound);
+      PrintRbTree();
       if (IsOpen(*left_bound))
       {
         SetWindCountForOpenPathEdge(*left_bound);
@@ -1168,6 +1169,8 @@ namespace Clipper2Lib {
         right_bound->wind_cnt = left_bound->wind_cnt;
         right_bound->wind_cnt2 = left_bound->wind_cnt2;
         InsertRightEdge(*left_bound, *right_bound);  ///////
+        actives_tree_.insert_unique(*right_bound); // this can be optimized
+        PrintRbTree();
         if (contributing)
         {
           AddLocalMinPoly(*left_bound, *right_bound, left_bound->bot, true);
@@ -1899,7 +1902,9 @@ namespace Clipper2Lib {
     else
       actives_ = next;
     if (next) next->prev_in_ael = prev;
-    delete& e;
+    //delete& e;
+    actives_tree_.erase(e);
+    PrintRbTree();
   }
 
 
@@ -1918,6 +1923,22 @@ namespace Clipper2Lib {
         e->curr_x = TopX(*e, top_y);
       e = e->next_in_ael;
     }
+  }
+
+  inline void ClipperBase::AdjustSelCurrXAndCopyToSEL(const int64_t top_y)
+  {
+    sel_ = &*actives_tree_.begin();
+    for (auto iter = actives_tree_.begin();
+       iter != actives_tree_.end(); iter++) {
+
+      iter->prev_in_sel = iter == actives_tree_.begin() ? nullptr :&*std::prev(iter);
+      iter->next_in_sel = std::next(iter) == actives_tree_.end() ? nullptr: &*std::next(iter);
+      iter->jump = iter->next_in_sel;
+      if (iter->join_with == JoinWith::Left)
+        iter->sel_curr_x = iter->prev_in_ael->sel_curr_x; // also avoids complications
+      else
+        iter->sel_curr_x = TopX(*iter, top_y);
+  }
   }
 
   bool ClipperBase::ExecuteInternal(ClipType ct, FillRule fillrule, bool use_polytrees)
@@ -2261,11 +2282,12 @@ namespace Clipper2Lib {
 
     //Calculate edge positions at the top of the current scanbeam, and from this
     //we will determine the intersections required to reach these new positions.
-    AdjustCurrXAndCopyToSEL(top_y);
+    //AdjustCurrXAndCopyToSEL(top_y);
     //Find all edge intersections in the current scanbeam using a stable merge
     //sort that ensures only adjacent edges are intersecting. Intersect info is
     //stored in FIntersectList ready to be processed in ProcessIntersectList.
     //Re merge sorts see https://stackoverflow.com/a/46319131/359538
+    AdjustSelCurrXAndCopyToSEL(top_y);
 
     Active* left = sel_, * right, * l_end, * r_end, * curr_base, * tmp;
 
@@ -2281,7 +2303,7 @@ namespace Clipper2Lib {
         left->jump = r_end;
         while (left != l_end && right != r_end)
         {
-          if (right->curr_x < left->curr_x)
+          if (right->sel_curr_x < left->sel_curr_x)
           {
             tmp = right->prev_in_sel;
             for (; ; )

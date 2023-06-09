@@ -24,12 +24,45 @@ struct my_node
    int      int_;
 };
 
+struct Active {
+	//Point64 bot;
+	//Point64 top;
+	int64_t curr_x = 0;		//current (updated at every new scanline)
+	double dx = 0.0;
+	int wind_dx = 1;			//1 or -1 depending on winding direction
+	int wind_cnt = 0;
+	int wind_cnt2 = 0;		//winding count of the opposite polytype
+	//OutRec* outrec = nullptr;
+	//AEL: 'active edge list' (Vatti's AET - active edge table)
+	//     a linked list of all edges (from left to right) that are present
+	//     (or 'active') within the current scanbeam (a horizontal 'beam' that
+	//     sweeps from bottom to top over the paths in the clipping operation).
+	Active* prev_in_ael = nullptr;
+	Active* next_in_ael = nullptr;
+	//SEL: 'sorted edge list' (Vatti's ST - sorted table)
+	//     linked list used when sorting edges into their new positions at the
+	//     top of scanbeams, but also (re)used to process horizontals.
+	Active* prev_in_sel = nullptr;
+	Active* next_in_sel = nullptr;
+	Active* jump = nullptr;
+    /*
+	Vertex* vertex_top = nullptr;
+	LocalMinima* local_min = nullptr;  // the bottom of an edge 'bound' (also Vatti)
+	bool is_left_bound = false;
+	JoinWith join_with = JoinWith::None;
+    */
+   Active *parent_, *left_, *right_;
+   int      color_;
+   //other members
+   Active(int curr_x_):curr_x(curr_x_) {};
+};
+
 //Define our own rbtree_node_traits
-struct my_rbtree_node_traits
+struct Active_rbtree_node_traits
 {
-   typedef my_node                                    node;
-   typedef my_node *                                  node_ptr;
-   typedef const my_node *                            const_node_ptr;
+   typedef Active                                    node;
+   typedef Active *                                  node_ptr;
+   typedef const Active *                            const_node_ptr;
    typedef int                                        color;
    static node_ptr get_parent(const_node_ptr n)       {  return n->parent_;   }
    static void set_parent(node_ptr n, node_ptr parent){  n->parent_ = parent; }
@@ -45,14 +78,14 @@ struct my_rbtree_node_traits
 
 struct node_ptr_compare
 {
-   bool operator()(const my_node *a, const my_node *b)
-   {  return a->int_ < b->int_;  }
+   bool operator()(const Active *a, const Active *b)
+   {  return a->curr_x < b->curr_x;  }
 };
 
 int main()
 {
-   typedef boost::intrusive::rbtree_algorithms<my_rbtree_node_traits> algo;
-   my_node header, two(2), three(3);
+   typedef boost::intrusive::rbtree_algorithms<Active_rbtree_node_traits> algo;
+   Active header(0), two(2), three(3);
 
    //Create an empty rbtree container:
    //"header" will be the header node of the tree
@@ -65,7 +98,7 @@ int main()
    algo::insert_equal_lower_bound(&header, &three, node_ptr_compare());
 
    //Now take the first node (the left node of the header)
-   my_node *n = header.left_;
+   Active *n = header.left_;
    assert(n == &two);
 
    //Now go to the next node

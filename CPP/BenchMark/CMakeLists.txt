@@ -18,6 +18,7 @@ set(benchmark_srcs
     CoedgeBenchmark.cpp
     boostRbTree.cpp
     boostRbTreeAlgorithm.cpp
+    sortRbTree.cpp
     # more to add
 )
 
