@@ -20,11 +20,15 @@ constexpr auto CLIPPER2_VERSION = "1.2.2";
 #include <functional>
 #include <numeric>
 #include <memory>
+#include <sstream>
 
 #include "clipper.core.h"
 
 namespace Clipper2Lib {
-
+	#define PrintRbTree(x) logError(__LINE__, (x))
+	#define SpecialPrintRbTree(x) special_logError(__LINE__, (x))
+	//#define DEBUG_TEST
+	//#define SPECIAL_DEBUG_TEST
 	struct Scanline;
 	struct IntersectNode;
 	struct Active;
@@ -287,6 +291,84 @@ namespace Clipper2Lib {
 		bool ReverseSolution = false;
 		void Clear();
 		void AddReuseableData(const ReuseableDataContainer64& reuseable_data);
+		void logError(int line, const std::string& msg) {
+			std::ostringstream os;
+			os << line << ':' << msg;
+			#ifdef DEBUG_TEST
+			std::cout << os.str() << std::endl;
+			
+			std::cout << "========start printing tht rb tree===========" << std::endl;
+			Active* e = actives_; 
+			while(e)
+			{
+				std::cout << "curr_value is: " << e->curr_x << " bot is: " << e->bot << " top is: " << e->top << " wind_cnt is: " << e->wind_cnt << std::endl ;
+				if (e->outrec)
+				{
+					std::cout << "		ourrect id is: " << e->outrec->idx;
+					if (e->outrec->front_edge) {
+						std::cout << " front is: " << e->outrec->front_edge->bot << " " << e->outrec->front_edge->top;
+					}
+					if (e->outrec->back_edge)
+					{
+						std::cout << " back is: "<<e->outrec->back_edge->bot << " " << e->outrec->back_edge->top;
+					}
+					std::cout<<std::endl;
+				}
+				e = e->next_in_ael; 
+			}
+			std::cout << "========end of printing tht rb tree===========" << std::endl;
+			#endif  // DEBUG_TEST
+	}
+		void special_logError(int line, const std::string& msg) {
+			std::ostringstream os;
+			os << line << ':' << msg;
+			#ifdef SPECIAL_DEBUG_TEST
+			
+			
+			std::cout << "========start printing tht rb tree===========" << std::endl;
+			Active* e = actives_;
+			
+			int edge_size = 0;
+			while (e)
+			{
+				std::cout << "curr_value is: " << e->curr_x << " bot is: " << e->bot << " top is: " << e->top << " wind_cnt is: " << e->wind_cnt << std::endl;
+				if (e->outrec)
+				{
+					std::cout << "		ourrect id is: " << e->outrec->idx;
+					if (e->outrec->front_edge) {
+						std::cout << " front is: " << e->outrec->front_edge->bot << " " << e->outrec->front_edge->top;
+					}
+					if (e->outrec->back_edge)
+					{
+						std::cout << " back is: " << e->outrec->back_edge->bot << " " << e->outrec->back_edge->top;
+					}
+					std::cout << std::endl;
+				}
+				e = e->next_in_ael;
+				edge_size++;
+			}
+			std::cout << "========end of printing tht rb tree===========" << std::endl;
+			std::cout << os.str() << std::endl;
+			std::cout << "ourrect id is: ";
+			e = actives_;
+			while (e) {
+				if (e->outrec) {
+					std::cout << " " << e->outrec->idx << " ";
+				}
+				e = e->next_in_ael;
+			}
+			std::cout << std::endl;
+
+			std::cout << "edge size is: " << edge_size << std::endl;
+			e = actives_;
+			std::cout << "curr_x is: ";
+			while (e) {
+					std::cout << " " << e->curr_x << " ";
+				e = e->next_in_ael;
+		}
+			std::cout << std::endl;
+			#endif //SPECIAL_DEBUG_TEST
+	}
 #ifdef USINGZ
 		int64_t DefaultZ = 0;
 #endif

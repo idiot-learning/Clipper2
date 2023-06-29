@@ -1,7 +1,8 @@
+#include "CommonUtils.h"
 #include "benchmark/benchmark.h"
 #include "clipper2/clipper.h"
-#include "Utils/CommonUtils.h"
 #include <iostream>
+
 
 static void CustomArguments(benchmark::internal::Benchmark *b) {
   for (int i = 5; i <= 6; ++i)
