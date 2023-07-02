@@ -1933,9 +1933,12 @@ namespace Clipper2Lib {
 
     while (succeeded_)
     {
+        PrintRbTree("=============== before InsertLocalMinimaIntoAEL ======================");
       InsertLocalMinimaIntoAEL(y);
+        PrintRbTree("=============== after InsertLocalMinimaIntoAEL ======================");
       Active* e;
       while (PopHorz(e)) DoHorizontal(*e);
+        PrintRbTree("=============== after DoHorizontal ======================");
       if (horz_seg_list_.size() > 0)
       {
         ConvertHorzSegsToJoins();
@@ -1943,9 +1946,13 @@ namespace Clipper2Lib {
       }
       bot_y_ = y;  // bot_y_ == bottom of scanbeam
       if (!PopScanline(y)) break;  // y new top of scanbeam
+        PrintRbTree("=============== before DoIntersections ======================");
       DoIntersections(y);
+        PrintRbTree("=============== after DoIntersections ======================");
       DoTopOfScanbeam(y);
+        PrintRbTree("=============== after DoTopOfScanbeam ======================");
       while (PopHorz(e)) DoHorizontal(*e);
+        PrintRbTree("=============== after DoHorizontal ======================");
     }
     if (succeeded_) ProcessHorzJoins();
     return succeeded_;

@@ -15,6 +15,7 @@ constexpr auto CLIPPER2_VERSION = "1.2.2";
 #include <cstdlib>
 #include <stdint.h>
 #include <iostream>
+#include <sstream>
 #include <queue>
 #include <vector>
 #include <functional>
@@ -25,6 +26,7 @@ constexpr auto CLIPPER2_VERSION = "1.2.2";
 
 namespace Clipper2Lib {
 
+#define PrintRbTree(x) logError(__LINE__, (x))
 	struct Scanline;
 	struct IntersectNode;
 	struct Active;
@@ -287,6 +289,28 @@ namespace Clipper2Lib {
 		bool ReverseSolution = false;
 		void Clear();
 		void AddReuseableData(const ReuseableDataContainer64& reuseable_data);
+        void logError(int line, const std::string& msg) {
+            std::ostringstream os;
+            os << line << ':' << msg;
+            std::cout << os.str() << std::endl;
+            std::cout << "========start printing tht rb tree===========" << std::endl;
+            for (auto iter =actives_; iter != nullptr; iter = iter->next_in_ael) {
+                auto curr_value = iter->curr_x;
+                std::cout << "curr_value is: " << curr_value << " bot is: " << iter->bot << " top is: " << iter->top << " wind_cnt is: " << iter->wind_cnt << std::endl;
+                if (iter->outrec) {
+                    std::cout << "          ourrect id is: " << iter->outrec->idx;
+                    if (iter->outrec->front_edge) {
+                        std::cout << " front is: " << iter->outrec->front_edge->bot << " " << iter->outrec->front_edge->top;
+                    }
+                    if (iter->outrec->back_edge) {
+                        std::cout << " back is: " << iter->outrec->back_edge->bot << " " << iter->outrec->back_edge->top;
+                    }
+                    std::cout << std::endl;
+                }
+            }
+
+            std::cout << "========end of printing tht rb tree===========" << std::endl;
+        }
 #ifdef USINGZ
 		int64_t DefaultZ = 0;
 #endif
